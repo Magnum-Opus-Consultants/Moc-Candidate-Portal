@@ -261,7 +261,7 @@ export function JobDetailPane({ job }: { job: Job }) {
 
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <Link
-            href={`/portal/profile?apply=${job.id}`}
+            href={`/signup?apply=${job.id}`}
             className="rounded-full bg-brand-700 px-7 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-800"
           >
             Apply now

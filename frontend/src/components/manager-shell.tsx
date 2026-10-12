@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { LogoMark } from "@/components/logo";
+import { LogoutButton } from "@/components/logout-button";
 import { NavLink } from "@/components/nav-link";
 import { Icon } from "@/components/ui/icon";
 import { JOB_STATUS_TONE, cn } from "@/components/ui/primitives";
@@ -196,13 +197,7 @@ export async function ManagerSidebar() {
       </div>
 
       <div className="border-t border-brand-700 p-3">
-        <Link
-          href="/"
-          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-brand-ink-muted transition-colors hover:bg-brand-800 hover:text-brand-ink"
-        >
-          <Icon name="logout" />
-          Log out
-        </Link>
+        <LogoutButton className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-brand-ink-muted transition-colors hover:bg-brand-800 hover:text-brand-ink" />
       </div>
     </>
   );

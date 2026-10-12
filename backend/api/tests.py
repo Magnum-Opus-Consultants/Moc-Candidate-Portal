@@ -245,6 +245,7 @@ class CandidateDashboardTests(TestCase):
             status=ApplicationStatus.SHORTLISTED,
         )
 
+        self.client.force_login(profile.user)
         response = self.client.get(reverse("api:candidate-dashboard"))
 
         self.assertEqual(response.status_code, 200)
@@ -271,6 +272,7 @@ class ManagerJobDetailTests(TestCase):
         # A matching candidate who has not applied should surface as suggested.
         make_candidate(username="suggested")
 
+        self.client.force_login(manager)
         response = self.client.get(
             reverse("api:manager-job-detail", args=[job.id])
         )
@@ -281,6 +283,46 @@ class ManagerJobDetailTests(TestCase):
         self.assertEqual(len(tabs["shortlisted"]), 1)
         self.assertEqual(len(tabs["suggested"]), 1)
         self.assertEqual(tabs["suggested"][0]["match"]["score"], 100)
+
+
+class RoleGatingTests(TestCase):
+    """Each role reaches only its own pages (SOW, System Roles)."""
+
+    def test_anonymous_cannot_read_a_candidate_dashboard(self):
+        make_candidate()
+        response = self.client.get(reverse("api:candidate-dashboard"))
+        self.assertIn(response.status_code, (401, 403))
+
+    def test_anonymous_cannot_read_the_candidate_database(self):
+        response = self.client.get(reverse("api:manager-candidates"))
+        self.assertIn(response.status_code, (401, 403))
+
+    def test_a_job_seeker_cannot_reach_hiring_manager_pages(self):
+        profile = make_candidate()
+        self.client.force_login(profile.user)
+
+        response = self.client.get(reverse("api:manager-candidates"))
+
+        self.assertIn(response.status_code, (401, 403))
+
+    def test_a_hiring_manager_cannot_reach_job_seeker_pages(self):
+        manager = User.objects.create_user(
+            username="gate-manager", role=Role.HIRING_MANAGER
+        )
+        self.client.force_login(manager)
+
+        response = self.client.get(reverse("api:candidate-dashboard"))
+
+        self.assertIn(response.status_code, (401, 403))
+
+    def test_the_public_job_list_stays_open(self):
+        """Browsing needs no account; only applying and saving do."""
+        make_job(title="Open role")
+
+        response = self.client.get(reverse("api:job-list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()["results"]), 1)
 
 
 class ApplicationConstraintTests(TestCase):

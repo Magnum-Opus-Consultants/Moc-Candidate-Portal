@@ -8,7 +8,7 @@ import {
   withParam,
   type Params,
 } from "@/components/job-board";
-import { Logo } from "@/components/logo";
+import { Logo, LogoMark } from "@/components/logo";
 import { BackendOffline, CardSkeleton } from "@/components/states";
 import { Icon } from "@/components/ui/icon";
 import { Button, cn } from "@/components/ui/primitives";
@@ -23,17 +23,30 @@ import { api } from "@/lib/api";
 export default function Home({ searchParams }: PageProps<"/">) {
   return (
     <div className="flex min-h-dvh flex-col">
+      <div className="bg-card">
+        <SiteHeader />
+      </div>
+
       {/*
-        The masthead and search sit on white with one soft curve behind them,
-        so the search pill lifts off the page the way a job board's does.
+        A deep petrol-blue hero carries the MOC brand: a short promise sits
+        above the search pill, which lifts off the brand gradient the way a
+        job board's does. brand-ink / the gradient hold in both themes.
       */}
-      <div className="relative isolate overflow-hidden bg-card">
+      <div className="relative isolate overflow-hidden bg-gradient-brand">
         <div
           aria-hidden
-          className="pointer-events-none absolute -left-[12%] -top-[120%] -z-10 h-[260%] w-[78%] rounded-[50%] bg-brand-50"
+          className="pointer-events-none absolute -right-[10%] -top-[140%] -z-0 h-[280%] w-[60%] rounded-[50%] bg-white/5"
         />
 
-        <SiteHeader />
+        <div className="relative mx-auto max-w-[1320px] px-4 pt-10 text-center sm:pt-12">
+          <h1 className="text-2xl font-semibold tracking-tight text-brand-ink sm:text-[2rem]">
+            World-class South African talent, global impact
+          </h1>
+          <p className="mx-auto mt-2 max-w-xl text-sm text-brand-ink-muted sm:text-[15px]">
+            Browse open roles at Magnum Opus Consultants and apply with a single
+            MOC profile — no account needed to look.
+          </p>
+        </div>
 
         <Suspense fallback={<SearchSkeleton />}>
           <SearchBar searchParams={searchParams} />
@@ -89,28 +102,12 @@ function SiteHeader() {
 
         <div className="ml-auto flex items-center gap-1">
           <Link
-            href="/portal/saved"
-            aria-label="Saved jobs"
-            className="hidden rounded-lg p-2.5 text-ink-muted transition-colors hover:bg-card-muted hover:text-ink-strong sm:block"
-          >
-            <Icon name="bookmark" className="size-5" />
-          </Link>
-
-          <span aria-hidden className="mx-2 hidden h-6 w-px bg-line sm:block" />
-
-          <Link
-            href="/manager"
-            className="hidden px-2 text-sm text-ink-muted transition-colors hover:text-ink-strong lg:block"
-          >
-            Employers / Post a job
-          </Link>
-          <Link
-            href="/portal"
+            href="/signin"
             className="rounded-lg px-3 py-2 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-50"
           >
             Sign in
           </Link>
-          <Button href="/portal/profile" size="sm" className="ml-1">
+          <Button href="/signup" size="sm" className="ml-1">
             Create profile
           </Button>
         </div>
@@ -172,31 +169,42 @@ async function SearchBar({
 
 function SiteFooter() {
   return (
-    <footer className="border-t border-line bg-card">
-      <div className="mx-auto grid max-w-[1320px] gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-4">
+    <footer className="bg-gradient-brand">
+      <div className="mx-auto grid max-w-[1320px] gap-8 px-4 py-12 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <Logo href={null} className="h-9" />
-          <p className="mt-3 max-w-xs text-sm leading-relaxed text-ink-muted">
+          <div className="flex items-center gap-3">
+            <LogoMark href={null} className="h-10" />
+            <span className="text-base font-semibold text-brand-ink">
+              Magnum Opus Consultants
+            </span>
+          </div>
+          <p className="mt-4 max-w-xs text-sm leading-relaxed text-brand-ink-muted">
             We help businesses expand globally by matching them with South
             Africa&apos;s leading professionals.
           </p>
         </div>
 
         <div>
-          <h2 className="text-sm font-semibold text-ink-strong">Job seekers</h2>
-          <ul className="mt-3 space-y-2 text-sm text-ink-muted">
+          <h2 className="text-sm font-semibold text-brand-ink">Job seekers</h2>
+          <ul className="mt-3 space-y-2 text-sm text-brand-ink-muted">
             <li>
-              <Link href="/" className="hover:text-brand-700">
+              <Link href="/" className="transition-colors hover:text-white">
                 Browse open positions
               </Link>
             </li>
             <li>
-              <Link href="/portal/profile" className="hover:text-brand-700">
+              <Link
+                href="/signup"
+                className="transition-colors hover:text-white"
+              >
                 Create your profile
               </Link>
             </li>
             <li>
-              <Link href="/portal/applications" className="hover:text-brand-700">
+              <Link
+                href="/portal/applications"
+                className="transition-colors hover:text-white"
+              >
                 Track your applications
               </Link>
             </li>
@@ -204,20 +212,29 @@ function SiteFooter() {
         </div>
 
         <div>
-          <h2 className="text-sm font-semibold text-ink-strong">Employers</h2>
-          <ul className="mt-3 space-y-2 text-sm text-ink-muted">
+          <h2 className="text-sm font-semibold text-brand-ink">Employers</h2>
+          <ul className="mt-3 space-y-2 text-sm text-brand-ink-muted">
             <li>
-              <Link href="/manager" className="hover:text-brand-700">
+              <Link
+                href="/manager"
+                className="transition-colors hover:text-white"
+              >
                 Hiring manager portal
               </Link>
             </li>
             <li>
-              <a href="https://moc-pty.com" className="hover:text-brand-700">
+              <a
+                href="https://moc-pty.com"
+                className="transition-colors hover:text-white"
+              >
                 Global Talent Solutions
               </a>
             </li>
             <li>
-              <a href="https://moc-pty.com" className="hover:text-brand-700">
+              <a
+                href="https://moc-pty.com"
+                className="transition-colors hover:text-white"
+              >
                 Professional Consulting
               </a>
             </li>
@@ -225,8 +242,8 @@ function SiteFooter() {
         </div>
 
         <div>
-          <h2 className="text-sm font-semibold text-ink-strong">Get in touch</h2>
-          <address className="mt-3 space-y-2 text-sm not-italic leading-relaxed text-ink-muted">
+          <h2 className="text-sm font-semibold text-brand-ink">Get in touch</h2>
+          <address className="mt-3 space-y-2 text-sm not-italic leading-relaxed text-brand-ink-muted">
             <p>
               318 The Hillside Building
               <br />
@@ -235,11 +252,17 @@ function SiteFooter() {
               South Africa
             </p>
             <p>
-              <a href="tel:+27767401777" className="hover:text-brand-700">
+              <a
+                href="tel:+27767401777"
+                className="transition-colors hover:text-white"
+              >
                 +27 76 740 1777
               </a>
               <br />
-              <a href="mailto:careers@moc-pty.com" className="hover:text-brand-700">
+              <a
+                href="mailto:careers@moc-pty.com"
+                className="transition-colors hover:text-white"
+              >
                 careers@moc-pty.com
               </a>
             </p>
@@ -247,8 +270,8 @@ function SiteFooter() {
         </div>
       </div>
 
-      <div className="border-t border-line">
-        <div className="mx-auto max-w-[1320px] px-4 py-4 text-xs text-ink-subtle">
+      <div className="border-t border-white/10">
+        <div className="mx-auto max-w-[1320px] px-4 py-4 text-xs text-brand-ink-muted">
           © {COPYRIGHT_YEAR} Magnum Opus Consultants (Pty) Ltd. All rights
           reserved.
         </div>
@@ -353,7 +376,7 @@ async function Results({
                 <Button href="/" variant="outline" size="sm">
                   Clear search
                 </Button>
-                <Button href="/portal/profile" size="sm">
+                <Button href="/signup" size="sm">
                   Create a profile
                 </Button>
               </div>

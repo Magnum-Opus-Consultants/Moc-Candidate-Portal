@@ -32,7 +32,8 @@ async function Dashboard() {
 
   const { user, profile, stats, recent_applications, recommended_jobs } =
     result.data;
-  const strength = PROFILE_STRENGTH[profile.strength] ?? PROFILE_STRENGTH.getting_started;
+  const strength =
+    PROFILE_STRENGTH[profile.strength] ?? PROFILE_STRENGTH.getting_started;
   const incomplete = profile.sections.filter((s) => !s.completed);
 
   return (
@@ -47,153 +48,163 @@ async function Dashboard() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          value={stats.active_applications}
-          title="Active applications"
-          supporting="Still in progress"
-        />
-        <StatCard
-          value={stats.shortlisted}
-          title="Shortlisted"
-          supporting="You made the cut"
-        />
-        <StatCard
-          value={stats.saved_jobs}
-          title="Saved jobs"
-          supporting="Roles you kept for later"
-        />
-        <StatCard
-          value={stats.total_applications}
-          title="Total applications"
-          supporting="All time"
-        />
-      </div>
-
-      {/* Profile completion — gates the branded CV download at 80%. */}
-      <section>
-        <SectionHeading
-          title="Profile Completion"
-          subtext={`${profile.completion}% complete`}
-          action={<StatusBadge label={strength.label} tone={strength.tone} />}
-        />
-        <Card>
-          <div className="flex flex-wrap items-center gap-6 border-b border-line p-5">
-            <ProgressCircle
-              value={profile.completion}
-              size="lg"
-              label="Complete"
-              title="Profile completion"
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+        {/* Main column. */}
+        <div className="space-y-8">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <StatCard
+              value={stats.active_applications}
+              title="Active applications"
+              supporting="Still in progress"
             />
-            <div className="min-w-56 flex-1">
-              <p className="text-sm leading-relaxed text-ink-muted">
-                {profile.can_download_branded_cv
-                  ? "Your profile is complete enough to download an MOC-branded CV."
-                  : `Reach 80% to unlock your MOC-branded CV — ${80 - profile.completion}% to go.`}
-              </p>
-              <Button
-                size="sm"
-                className="mt-4"
-                variant={profile.can_download_branded_cv ? "primary" : "outline"}
-                disabled={!profile.can_download_branded_cv}
-              >
-                <Icon name="download" className="size-3.5" />
-                Download branded CV
-              </Button>
+            <StatCard
+              value={stats.shortlisted}
+              title="Shortlisted"
+              supporting="You made the cut"
+            />
+            <StatCard
+              value={stats.saved_jobs}
+              title="Saved jobs"
+              supporting="Roles you kept for later"
+            />
+            <StatCard
+              value={stats.total_applications}
+              title="Total applications"
+              supporting="All time"
+            />
+          </div>
+
+          <section>
+            <SectionHeading
+              title="Active applications"
+              action={
+                <Link
+                  href="/portal/applications"
+                  className="inline-flex items-center gap-1 text-sm font-medium text-brand-700"
+                >
+                  View all
+                  <Icon name="chevron-right" className="size-3.5" />
+                </Link>
+              }
+            />
+            {recent_applications.length === 0 ? (
+              <EmptyState
+                title="No applications yet"
+                body="Apply for a role and you can track its progress here."
+              />
+            ) : (
+              <div className="space-y-2">
+                {recent_applications.map((application) => (
+                  <Card
+                    key={application.id}
+                    className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+                  >
+                    <div className="min-w-0">
+                      <Link
+                        href={`/jobs/${application.job.id}`}
+                        className="font-medium text-ink-strong hover:text-brand-700"
+                      >
+                        {application.job.title}
+                      </Link>
+                      <p className="text-xs text-ink-subtle">
+                        {application.job.company} · applied{" "}
+                        {relativeDays(application.applied_at).toLowerCase()}
+                      </p>
+                    </div>
+                    <StatusBadge
+                      label={application.status_label}
+                      tone={APPLICATION_STATUS_TONE[application.status] ?? "grey"}
+                    />
+                  </Card>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section>
+            <SectionHeading
+              title="Recommended for you"
+              subtext="Ranked against your profile by the matching engine"
+              action={
+                <Link
+                  href="/portal/recommended"
+                  className="inline-flex items-center gap-1 text-sm font-medium text-brand-700"
+                >
+                  View all
+                  <Icon name="chevron-right" className="size-3.5" />
+                </Link>
+              }
+            />
+            {recommended_jobs.length === 0 ? (
+              <EmptyState title="Nothing to recommend yet" />
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {recommended_jobs.map((job) => (
+                  <RecommendedJobCard key={job.id} job={job} />
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+
+        {/* Right column — the big profile-completion panel. */}
+        <aside className="space-y-4 lg:sticky lg:top-4">
+          <Card className="p-6">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-base font-semibold text-ink-strong">
+                Profile completion
+              </h2>
+              <StatusBadge label={strength.label} tone={strength.tone} />
             </div>
-          </div>
 
-          <div className="divide-y divide-line">
-            {(incomplete.length > 0 ? incomplete : profile.sections)
-              .slice(0, 4)
-              .map((section) => (
-                <ProfileSectionRow key={section.slug} section={section} />
-              ))}
-          </div>
+            <div className="mt-5 flex justify-center">
+              <ProgressCircle
+                value={profile.completion}
+                size="xl"
+                label="Complete"
+                title="Profile completion"
+              />
+            </div>
 
-          <div className="border-t border-line px-4 py-3">
+            <p className="mt-5 text-center text-sm leading-relaxed text-ink-muted">
+              {profile.can_download_branded_cv
+                ? "Your profile is complete enough to download an MOC-branded CV."
+                : `Reach 80% to unlock your MOC-branded CV — ${80 - profile.completion}% to go.`}
+            </p>
+
+            <Button
+              size="sm"
+              className="mt-4 w-full"
+              variant={profile.can_download_branded_cv ? "primary" : "outline"}
+              disabled={!profile.can_download_branded_cv}
+            >
+              <Icon name="download" className="size-3.5" />
+              Download branded CV
+            </Button>
+
+            {incomplete.length > 0 ? (
+              <div className="mt-5 border-t border-line pt-4">
+                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-ink-subtle">
+                  Finish these next
+                </p>
+                <div className="divide-y divide-line">
+                  {incomplete.slice(0, 3).map((section) => (
+                    <ProfileSectionRow key={section.slug} section={section} />
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             <Link
               href="/portal/profile"
-              className="inline-flex items-center gap-1 text-sm font-medium text-brand-700"
+              className="mt-4 inline-flex w-full items-center justify-center gap-1 rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-800"
             >
-              See all sections
+              {profile.completion === 0 ? "Fill in your profile" : "Complete your profile"}
               <Icon name="chevron-right" className="size-3.5" />
             </Link>
-          </div>
-        </Card>
-      </section>
-
-      <section>
-        <SectionHeading
-          title="Active applications"
-          action={
-            <Link
-              href="/portal/applications"
-              className="inline-flex items-center gap-1 text-sm font-medium text-brand-700"
-            >
-              View all
-              <Icon name="chevron-right" className="size-3.5" />
-            </Link>
-          }
-        />
-        {recent_applications.length === 0 ? (
-          <EmptyState
-            title="No applications yet"
-            body="Apply for a role and you can track its progress here."
-          />
-        ) : (
-          <div className="space-y-2">
-            {recent_applications.map((application) => (
-              <Card
-                key={application.id}
-                className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-              >
-                <div className="min-w-0">
-                  <Link
-                    href={`/jobs/${application.job.id}`}
-                    className="font-medium text-ink-strong hover:text-brand-700"
-                  >
-                    {application.job.title}
-                  </Link>
-                  <p className="text-xs text-ink-subtle">
-                    {application.job.company} · applied{" "}
-                    {relativeDays(application.applied_at).toLowerCase()}
-                  </p>
-                </div>
-                <StatusBadge
-                  label={application.status_label}
-                  tone={APPLICATION_STATUS_TONE[application.status] ?? "grey"}
-                />
-              </Card>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section>
-        <SectionHeading
-          title="Recommended for you"
-          subtext="Ranked against your profile by the matching engine"
-          action={
-            <Link
-              href="/portal/recommended"
-              className="inline-flex items-center gap-1 text-sm font-medium text-brand-700"
-            >
-              View all
-              <Icon name="chevron-right" className="size-3.5" />
-            </Link>
-          }
-        />
-        {recommended_jobs.length === 0 ? (
-          <EmptyState title="Nothing to recommend yet" />
-        ) : (
-          <div className="grid gap-3 md:grid-cols-3">
-            {recommended_jobs.map((job) => (
-              <RecommendedJobCard key={job.id} job={job} />
-            ))}
-          </div>
-        )}
-      </section>
+          </Card>
+        </aside>
+      </div>
     </div>
   );
 }

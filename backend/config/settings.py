@@ -127,11 +127,48 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
 
-MAILERS = {
-    "default": {
-        "BACKEND": "django.core.mail.backends.console.EmailBackend",
-    },
-}
+# Email delivery (Django 6 MAILERS). Console by default, so development needs no
+# credentials and the welcome email just prints to the log. To send for real,
+# set DJANGO_EMAIL_BACKEND to the SMTP backend and supply the moc-pty.com
+# credentials. Microsoft 365: smtp.office365.com:587, STARTTLS, and an app
+# password if basic SMTP auth is disabled on the mailbox.
+#
+# The host, port and credentials go inside OPTIONS, in lower case: Django
+# passes OPTIONS straight to the backend's constructor and ignores any other
+# key in the mailer config. Spelling them HOST/PORT at the top level looks
+# right but is dropped, and the SMTP backend then refuses to start with
+# "OPTIONS must define 'host'" — which would only surface in production,
+# since development takes the console branch below.
+# AWS SES (eu-west-1) is MOC's transactional sender, shared with the Automation
+# Platform. django-ses reads these global settings when the SES backend is used.
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+AWS_SES_REGION_NAME = os.getenv("AWS_SES_REGION_NAME", "eu-west-1")
+AWS_SES_REGION_ENDPOINT = os.getenv(
+    "AWS_SES_REGION_ENDPOINT", f"email.{AWS_SES_REGION_NAME}.amazonaws.com"
+)
+
+_EMAIL_BACKEND = os.getenv("DJANGO_EMAIL_BACKEND", "")
+if "ses" in _EMAIL_BACKEND.lower():
+    # django-ses pulls its credentials from the AWS_* settings above.
+    MAILERS = {"default": {"BACKEND": _EMAIL_BACKEND}}
+elif "smtp" in _EMAIL_BACKEND:
+    MAILERS = {
+        "default": {
+            "BACKEND": _EMAIL_BACKEND,
+            "OPTIONS": {
+                "host": os.getenv("DJANGO_EMAIL_HOST", "smtp.office365.com"),
+                "port": int(os.getenv("DJANGO_EMAIL_PORT", "587")),
+                "use_tls": env_bool("DJANGO_EMAIL_USE_TLS", True),
+                "username": os.getenv("DJANGO_EMAIL_HOST_USER", ""),
+                "password": os.getenv("DJANGO_EMAIL_HOST_PASSWORD", ""),
+            },
+        }
+    }
+else:
+    MAILERS = {
+        "default": {"BACKEND": "django.core.mail.backends.console.EmailBackend"}
+    }
 
 
 # Django REST Framework
@@ -155,3 +192,8 @@ CORS_ALLOWED_ORIGINS = env_list(
 )
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
 AUTH_USER_MODEL = "api.User"
+
+DEFAULT_FROM_EMAIL = os.getenv(
+    "DJANGO_DEFAULT_FROM_EMAIL",
+    "Magnum Opus Consultants <careers@moc-pty.com>",
+)

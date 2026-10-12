@@ -193,11 +193,47 @@ export type ManagerJobDetail = {
   };
 };
 
+export type AuthUser = {
+  id: number;
+  name: string;
+  initials: string;
+  email: string;
+  phone: string;
+  role: string;
+  /** Where this role lands after signing in: /portal or /manager. */
+  home: string;
+};
+
+export type MutationResult<T = unknown> =
+  | { ok: true; data: T }
+  | { ok: false; error: string; status?: number };
+
+/**
+ * On the server, forward the browser's cookies so the Django session — and so
+ * request.user — is available while rendering a signed-in page. No-op in the
+ * browser, where the cookie rides along with credentials: "include".
+ */
+async function forwardedHeaders(): Promise<Record<string, string>> {
+  if (typeof window !== "undefined") return {};
+  try {
+    const { cookies } = await import("next/headers");
+    const store = await cookies();
+    const header = store
+      .getAll()
+      .map((c) => `${c.name}=${c.value}`)
+      .join("; ");
+    return header ? { cookie: header } : {};
+  } catch {
+    return {};
+  }
+}
+
 async function get<T>(path: string): Promise<ApiResult<T>> {
   try {
     const response = await fetch(`${API_BASE_URL}${path}`, {
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", ...(await forwardedHeaders()) },
       cache: "no-store",
+      credentials: "include",
     });
 
     if (!response.ok) {
@@ -205,6 +241,40 @@ async function get<T>(path: string): Promise<ApiResult<T>> {
     }
 
     return { ok: true, data: (await response.json()) as T };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Request failed",
+    };
+  }
+}
+
+async function send<T = unknown>(
+  method: "POST" | "DELETE",
+  path: string,
+  body?: unknown,
+): Promise<MutationResult<T>> {
+  try {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        ...(await forwardedHeaders()),
+      },
+      credentials: "include",
+      cache: "no-store",
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return {
+        ok: false,
+        status: response.status,
+        error: data?.detail || data?.error || `Request failed (${response.status})`,
+      };
+    }
+    return { ok: true, data: data as T };
   } catch (error) {
     return {
       ok: false,
@@ -228,6 +298,8 @@ export const api = {
   candidateRecommended: () => get<Listed<Job>>("/api/candidate/recommended/"),
   candidateRecentlyViewed: () =>
     get<Listed<Job>>("/api/candidate/recently-viewed/"),
+  updateProfile: (data: Record<string, unknown>) =>
+    send<CandidateProfile>("POST", "/api/candidate/profile/update/", data),
 
   managerDashboard: () => get<ManagerDashboard>("/api/manager/dashboard/"),
   managerJobs: (query = "") => get<Listed<Job>>(`/api/manager/jobs/${query}`),
@@ -240,6 +312,21 @@ export const api = {
       `/api/manager/candidates/${id}/`,
     ),
   managerEmails: () => get<Listed<AutomaticEmail>>("/api/manager/emails/"),
+
+  // Authentication + account (email/password; social providers are later scope).
+  me: () => get<AuthUser>("/api/auth/me/"),
+  login: (email: string, password: string) =>
+    send<AuthUser>("POST", "/api/auth/login/", { email, password }),
+  register: (name: string, email: string, password: string) =>
+    send<AuthUser>("POST", "/api/auth/register/", { name, email, password }),
+  logout: () => send("POST", "/api/auth/logout/"),
+  updateName: (name: string) =>
+    send<AuthUser>("POST", "/api/account/profile/", { name }),
+  updateEmail: (email: string) =>
+    send<AuthUser>("POST", "/api/account/email/", { email }),
+  changePassword: (current_password: string, new_password: string) =>
+    send("POST", "/api/account/password/", { current_password, new_password }),
+  deleteAccount: () => send("POST", "/api/account/delete/"),
 };
 
 /* --- Formatting helpers shared by the pages -------------------------------- */

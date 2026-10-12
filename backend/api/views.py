@@ -2,14 +2,19 @@
 
 Sign-in is Day 2 of the Development Plan and is not built yet, so the "current
 user" is resolved from the seeded demo accounts. Every place that does this
-calls current_job_seeker()/current_hiring_manager(), so swapping in
+calls current_job_seeker(request)/current_hiring_manager(request), so swapping in
 request.user once authentication lands is a change in one place.
 """
 
+import json
+
 from django.db.models import Count, Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view
+from rest_framework.exceptions import NotAuthenticated
 from rest_framework.response import Response
 
 from .matching import score_match
@@ -41,12 +46,29 @@ from .serializers import (
 # --- Stand-in for authentication (Development Plan, Day 2) -------------------
 
 
-def current_job_seeker() -> User | None:
-    return User.objects.filter(role=Role.JOB_SEEKER).order_by("id").first()
+def current_job_seeker(request) -> User:
+    """The signed-in job seeker, or a 401 if nobody is signed in as one."""
+    user = request.user
+    if user.is_authenticated and user.role == Role.JOB_SEEKER:
+        return user
+    raise NotAuthenticated("Sign in as a job seeker to view this.")
 
 
-def current_hiring_manager() -> User | None:
-    return User.objects.filter(role=Role.HIRING_MANAGER).order_by("id").first()
+def current_hiring_manager(request) -> User:
+    """The signed-in hiring manager, or a 401 if nobody is signed in as one."""
+    user = request.user
+    if user.is_authenticated and user.role == Role.HIRING_MANAGER:
+        return user
+    raise NotAuthenticated("Sign in as a hiring manager to view this.")
+
+
+def optional_job_seeker(request) -> User | None:
+    """The signed-in seeker, or None — for public views that personalise when
+    possible but must still work for anonymous visitors."""
+    user = request.user
+    if user.is_authenticated and user.role == Role.JOB_SEEKER:
+        return user
+    return None
 
 
 # --- Public job browsing -----------------------------------------------------
@@ -94,7 +116,7 @@ def job_list(request):
     if sort == "oldest":
         jobs = jobs.order_by("posted_at")
     elif sort == "relevance":
-        seeker = current_job_seeker()
+        seeker = optional_job_seeker(request)
         profile = getattr(seeker, "profile", None) if seeker else None
         ranked = sorted(
             jobs, key=lambda j: score_match(profile, j).score, reverse=True
@@ -109,7 +131,7 @@ def job_list(request):
 @api_view(["GET"])
 def job_detail(request, job_id: int):
     job = get_object_or_404(Job, pk=job_id)
-    seeker = current_job_seeker()
+    seeker = optional_job_seeker(request)
 
     data = JobSerializer(job).data
     if seeker:
@@ -157,13 +179,84 @@ def job_categories(request):
 # --- Job seeker portal -------------------------------------------------------
 
 
+PROFILE_TEXT_FIELDS = [
+    "headline",
+    "location",
+    "summary",
+    "role_category",
+    "experience_level",
+    "preferred_work_setup",
+]
+
+
+def _recompute_sections(profile: CandidateProfile, user: User) -> None:
+    """Derive the section-completion rows from what the seeker has filled in, so
+    overall completion rises honestly as they complete their profile. EE
+    information stays optional, so a fully filled profile reaches ~88% and
+    unlocks the branded CV (the 80% gate)."""
+
+    def pct(*values) -> int:
+        return round(100 * sum(1 for v in values if v) / len(values)) if values else 0
+
+    sp = dict(profile.section_progress or {})
+    sp["personal_details"] = pct(
+        user.first_name, user.last_name, user.phone, profile.location
+    )
+    sp["career_details"] = pct(
+        profile.headline, profile.role_category, profile.experience_level
+    )
+    sp["education"] = pct(profile.role_category, profile.experience_level)
+    sp["experience"] = 100 if profile.summary else 0
+    sp["remuneration"] = 100 if profile.preferred_work_setup else 0
+    sp["skills_tools"] = 100 if profile.skills else 0
+    sp["privacy_sharing"] = 100  # reviewed on save
+    sp.setdefault("ee_information", 0)  # optional
+    profile.section_progress = sp
+
+
 @api_view(["GET"])
 def candidate_profile(request):
-    seeker = current_job_seeker()
-    if seeker is None:
-        return Response({"detail": "No job seeker account seeded."}, status=404)
+    seeker = current_job_seeker(request)
     profile, _ = CandidateProfile.objects.get_or_create(user=seeker)
     return Response(CandidateProfileSerializer(profile).data)
+
+
+@csrf_exempt
+def update_candidate_profile(request):
+    """Fill in / edit the signed-in seeker's profile. Plain CSRF-exempt JSON
+    view (like the account endpoints) so the session-cookie client can POST
+    without a CSRF token; completion is recomputed from the filled fields."""
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed."}, status=405)
+    user = request.user
+    if not user.is_authenticated or user.role != Role.JOB_SEEKER:
+        return JsonResponse({"detail": "Sign in as a job seeker."}, status=403)
+
+    try:
+        data = json.loads(request.body or b"{}")
+    except (json.JSONDecodeError, ValueError):
+        data = {}
+
+    profile, _ = CandidateProfile.objects.get_or_create(user=user)
+    name = (data.get("name") or "").strip()
+    if name:
+        first, _, last = name.partition(" ")
+        user.first_name, user.last_name = first, last
+    if "phone" in data:
+        user.phone = (data.get("phone") or "").strip()
+    user.save()
+
+    for field in PROFILE_TEXT_FIELDS:
+        if field in data:
+            setattr(profile, field, (data.get(field) or "").strip())
+    if "skills" in data:
+        skills = data.get("skills")
+        if isinstance(skills, str):
+            skills = [s.strip() for s in skills.split(",") if s.strip()]
+        profile.skills = [s for s in (skills or []) if s]
+    _recompute_sections(profile, user)
+    profile.save()
+    return JsonResponse(CandidateProfileSerializer(profile).data)
 
 
 @api_view(["POST"])
@@ -174,7 +267,7 @@ def apply_to_job(request, job_id: int):
     documents to that position, and a job seeker may apply to each position
     once. The response is the confirmation the page shows on screen.
     """
-    seeker = current_job_seeker()
+    seeker = current_job_seeker(request)
     if seeker is None:
         return Response({"detail": "Sign in to apply."}, status=401)
 
@@ -225,7 +318,7 @@ def apply_to_job(request, job_id: int):
 
 @api_view(["GET"])
 def candidate_applications(request):
-    seeker = current_job_seeker()
+    seeker = current_job_seeker(request)
     if seeker is None:
         return Response({"results": []})
     applications = (
@@ -267,7 +360,7 @@ def candidate_applications(request):
 
 @api_view(["GET"])
 def candidate_saved_jobs(request):
-    seeker = current_job_seeker()
+    seeker = current_job_seeker(request)
     if seeker is None:
         return Response({"results": []})
     saved = SavedJob.objects.filter(candidate=seeker).select_related("job")
@@ -309,13 +402,13 @@ def _recommended_jobs_for(seeker: User | None) -> list[dict]:
 @api_view(["GET"])
 def candidate_recommended_jobs(request):
     """Open positions ranked by match score against the job seeker's profile."""
-    return Response({"results": _recommended_jobs_for(current_job_seeker())})
+    return Response({"results": _recommended_jobs_for(current_job_seeker(request))})
 
 
 @api_view(["GET"])
 def candidate_recently_viewed(request):
     """The last 10 jobs the job seeker opened, newest first, de-duplicated."""
-    seeker = current_job_seeker()
+    seeker = current_job_seeker(request)
     if seeker is None:
         return Response({"results": []})
 
@@ -334,7 +427,7 @@ def candidate_recently_viewed(request):
 @api_view(["GET"])
 def candidate_dashboard(request):
     """Everything the job seeker dashboard renders, in one round trip."""
-    seeker = current_job_seeker()
+    seeker = current_job_seeker(request)
     if seeker is None:
         return Response({"detail": "No job seeker account seeded."}, status=404)
 
@@ -378,7 +471,13 @@ def candidate_dashboard(request):
 
 @api_view(["GET"])
 def manager_jobs(request):
-    """Every posting including drafts, with search, status filter and sorting."""
+    """Every posting including drafts, with search, status filter and sorting.
+
+    Gated: this returns draft and private postings, which the public job list
+    deliberately hides.
+    """
+    current_hiring_manager(request)
+
     jobs = Job.objects.all()
 
     search = request.query_params.get("search", "").strip()
@@ -407,7 +506,7 @@ def manager_jobs(request):
 def manager_job_detail(request, job_id: int):
     """A position with its four applicant tabs: All, Shortlisted, Favourites, Suggested."""
     job = get_object_or_404(Job, pk=job_id)
-    manager = current_hiring_manager()
+    manager = current_hiring_manager(request)
 
     applications = Application.objects.filter(job=job).select_related("candidate")
     bookmarked_ids = set()
@@ -455,7 +554,7 @@ def manager_job_detail(request, job_id: int):
 
 @api_view(["GET"])
 def manager_dashboard(request):
-    manager = current_hiring_manager()
+    manager = current_hiring_manager(request)
     jobs = Job.objects.annotate(applicants=Count("applications"))
 
     return Response(
@@ -480,6 +579,8 @@ def manager_dashboard(request):
 @api_view(["GET"])
 def manager_candidates(request):
     """The candidate database: search, filters and sorting from the designs."""
+    current_hiring_manager(request)
+
     profiles = CandidateProfile.objects.select_related("user")
 
     search = request.query_params.get("search", "").strip()
@@ -514,6 +615,8 @@ def manager_candidates(request):
 
 @api_view(["GET"])
 def manager_candidate_detail(request, candidate_id: int):
+    current_hiring_manager(request)
+
     profile = get_object_or_404(
         CandidateProfile.objects.select_related("user"), user_id=candidate_id
     )
@@ -530,6 +633,8 @@ def manager_candidate_detail(request, candidate_id: int):
 
 @api_view(["GET"])
 def automatic_emails(request):
+    current_hiring_manager(request)
+
     emails = AutomaticEmail.objects.all().order_by("label")
     return Response({"results": AutomaticEmailSerializer(emails, many=True).data})
 

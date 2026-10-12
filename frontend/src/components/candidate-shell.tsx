@@ -1,7 +1,7 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { Logo } from "@/components/logo";
+import { LogoMark } from "@/components/logo";
+import { LogoutButton } from "@/components/logout-button";
 import { NavLink } from "@/components/nav-link";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { Avatar } from "@/components/ui/primitives";
@@ -33,8 +33,13 @@ export function CandidateShell({
   return (
     <div className="flex min-h-dvh">
       <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-line bg-card lg:flex">
-        <div className="px-5 py-5">
-          <Logo href="/portal" className="h-7" />
+        <div className="p-4">
+          <div className="flex flex-col items-center gap-3 rounded-2xl bg-gradient-brand px-5 py-7 text-center">
+            <LogoMark href="/portal" className="h-16" />
+            <span className="text-xs font-medium uppercase tracking-wide text-brand-ink-muted">
+              Careers Portal
+            </span>
+          </div>
         </div>
 
         <nav className="flex-1 space-y-0.5 px-3">
@@ -47,13 +52,7 @@ export function CandidateShell({
         </nav>
 
         <div className="border-t border-line p-3">
-          <Link
-            href="/"
-            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-ink-muted transition-colors hover:bg-card-muted hover:text-ink"
-          >
-            <Icon name="logout" />
-            Log out
-          </Link>
+          <LogoutButton className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-ink-muted transition-colors hover:bg-card-muted hover:text-ink" />
         </div>
       </aside>
 
