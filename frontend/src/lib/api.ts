@@ -77,13 +77,44 @@ export type CandidateProfile = {
   updated_at: string;
 };
 
+export type ApplicationEvent = {
+  id: number;
+  from_status: string;
+  from_label: string;
+  to_status: string;
+  to_label: string;
+  note: string;
+  created_at: string;
+};
+
+export type PipelineStage = { value: string; label: string };
+
 export type Application = {
   id: number;
   job: Job;
   status: string;
   status_label: string;
+  /** How far along the recruitment pipeline, 0-based. */
+  stage_index: number;
+  /** True once the application has ended (not successful, or job closed). */
+  is_closed: boolean;
+  pipeline: PipelineStage[];
+  events: ApplicationEvent[];
+  /** What went to the position with this application. */
+  sent: {
+    profile: boolean;
+    profile_completion: number;
+    cv: boolean;
+    documents: number;
+  };
   applied_at: string;
   updated_at: string;
+};
+
+export type ApplicationList = {
+  results: Application[];
+  counts: Record<string, number>;
+  pipeline: PipelineStage[];
 };
 
 export type Applicant = {
@@ -191,8 +222,8 @@ export const api = {
 
   candidateDashboard: () => get<CandidateDashboard>("/api/candidate/dashboard/"),
   candidateProfile: () => get<CandidateProfile>("/api/candidate/profile/"),
-  candidateApplications: () =>
-    get<Listed<Application>>("/api/candidate/applications/"),
+  candidateApplications: (query = "") =>
+    get<ApplicationList>(`/api/candidate/applications/${query}`),
   candidateSaved: () => get<Listed<Job>>("/api/candidate/saved/"),
   candidateRecommended: () => get<Listed<Job>>("/api/candidate/recommended/"),
   candidateRecentlyViewed: () =>
