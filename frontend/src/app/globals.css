@@ -1,0 +1,205 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens.
+ *
+ * The palette is Magnum Opus Consultants' own, taken from moc-pty.com:
+ * #054B70 petrol blue is the primary across the site and the logo, #8BB7C4 is
+ * the accent, #F5F5F5 the page grey. Poppins is the brand typeface.
+ *
+ * The scale around those two anchors is generated so there are usable hovers,
+ * surfaces and borders; 300 and 700 are the exact site values.
+ */
+
+:root {
+  /* Surfaces */
+  --canvas: #f5f5f5;
+  --card: #ffffff;
+  --card-muted: #f7f9fa;
+  --line: #e4e7ea;
+  --line-strong: #cbd2d8;
+
+  /* Ink */
+  --ink: #1d2b36;
+  --ink-strong: #0d1b26;
+  --ink-muted: #56666f;
+  --ink-subtle: #64737e;
+
+  /* Brand */
+  --brand-50: #f2f7f9;
+  --brand-100: #dbe9ef;
+  --brand-200: #bcd6e0;
+  --brand-300: #8bb7c4; /* site accent */
+  --brand-400: #5e95a9;
+  --brand-500: #35758f;
+  --brand-600: #155e7e;
+  --brand-700: #054b70; /* site primary */
+  --brand-800: #053e5c;
+  --brand-900: #04304a;
+
+  --brand-ink: #e9f1f5;
+  --brand-ink-muted: #9fbccb;
+
+  /* Status */
+  --green: #15803d;
+  --green-bg: #dcfce7;
+  --orange: #c2620b;
+  --orange-bg: #ffeeda;
+  --purple: #7e22ce;
+  --purple-bg: #f4e8ff;
+  --grey: #5b6b76;
+  --grey-bg: #eef1f3;
+  --yellow: #a16207;
+  --yellow-bg: #fdf3d4;
+  --rose: #be123c;
+  --rose-bg: #fde8ec;
+  --info: #055f7e;
+  --info-bg: #d9eef5;
+
+  /* Gradients, used sparingly — the brand reads as flat and utilitarian. */
+  --gradient-brand: linear-gradient(135deg, #04304a, #054b70 55%, #155e7e);
+  --gradient-brand-soft: linear-gradient(90deg, #bcd6e0, #dbe9ef);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas: #0b1620;
+    --card: #11212c;
+    --card-muted: #162936;
+    --line: #1f3543;
+    --line-strong: #2d4859;
+
+    --ink: #e4edf2;
+    --ink-strong: #f2f7fa;
+    --ink-muted: #9db1bd;
+    --ink-subtle: #768c99;
+
+    --brand-50: #0e2735;
+    --brand-100: #123344;
+    --brand-200: #17485f;
+    --brand-300: #2d7190;
+    --brand-400: #4d93ad;
+    --brand-500: #6fadc2;
+    --brand-600: #8bb7c4;
+    --brand-700: #a7cbd7;
+    --brand-800: #c3dde5;
+    --brand-900: #dcebf0;
+
+    --green: #4ade80;
+    --green-bg: #0f3523;
+    --orange: #fb923c;
+    --orange-bg: #3a2410;
+    --purple: #c084fc;
+    --purple-bg: #2c1640;
+    --grey: #94a3b8;
+    --grey-bg: #1b2c3b;
+    --yellow: #fcd34d;
+    --yellow-bg: #362b0f;
+    --rose: #fb7185;
+    --rose-bg: #3a1618;
+    --info: #67e8f9;
+    --info-bg: #0d3340;
+  }
+}
+
+:root[data-theme="dark"] {
+  --canvas: #0b1620;
+  --card: #11212c;
+  --card-muted: #162936;
+  --line: #1f3543;
+  --line-strong: #2d4859;
+
+  --ink: #e4edf2;
+  --ink-strong: #f2f7fa;
+  --ink-muted: #9db1bd;
+  --ink-subtle: #768c99;
+
+  --brand-50: #0e2735;
+  --brand-100: #123344;
+  --brand-200: #17485f;
+  --brand-300: #2d7190;
+  --brand-400: #4d93ad;
+  --brand-500: #6fadc2;
+  --brand-600: #8bb7c4;
+  --brand-700: #a7cbd7;
+  --brand-800: #c3dde5;
+  --brand-900: #dcebf0;
+
+  --green: #4ade80;
+  --green-bg: #0f3523;
+  --orange: #fb923c;
+  --orange-bg: #3a2410;
+  --purple: #c084fc;
+  --purple-bg: #2c1640;
+  --grey: #94a3b8;
+  --grey-bg: #1b2c3b;
+  --yellow: #fcd34d;
+  --yellow-bg: #362b0f;
+  --rose: #fb7185;
+  --rose-bg: #3a1618;
+  --info: #67e8f9;
+  --info-bg: #0d3340;
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-card: var(--card);
+  --color-card-muted: var(--card-muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-ink: var(--ink);
+  --color-ink-strong: var(--ink-strong);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-ink-muted: var(--brand-ink-muted);
+
+  --color-status-green: var(--green);
+  --color-status-green-bg: var(--green-bg);
+  --color-status-orange: var(--orange);
+  --color-status-orange-bg: var(--orange-bg);
+  --color-status-purple: var(--purple);
+  --color-status-purple-bg: var(--purple-bg);
+  --color-status-grey: var(--grey);
+  --color-status-grey-bg: var(--grey-bg);
+  --color-status-yellow: var(--yellow);
+  --color-status-yellow-bg: var(--yellow-bg);
+  --color-status-rose: var(--rose);
+  --color-status-rose-bg: var(--rose-bg);
+  --color-status-info: var(--info);
+  --color-status-info-bg: var(--info-bg);
+
+  --font-sans: var(--font-poppins);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* The portal is a dense data UI; a lighter scrollbar keeps panels calm. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+@utility bg-gradient-brand {
+  background-image: var(--gradient-brand);
+}
+@utility bg-gradient-brand-soft {
+  background-image: var(--gradient-brand-soft);
+}
