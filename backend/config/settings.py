@@ -139,18 +139,17 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # right but is dropped, and the SMTP backend then refuses to start with
 # "OPTIONS must define 'host'" — which would only surface in production,
 # since development takes the console branch below.
-# AWS SES (eu-west-1) is MOC's transactional sender, shared with the Automation
-# Platform. django-ses reads these global settings when the SES backend is used.
-AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "")
-AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
-AWS_SES_REGION_NAME = os.getenv("AWS_SES_REGION_NAME", "eu-west-1")
-AWS_SES_REGION_ENDPOINT = os.getenv(
-    "AWS_SES_REGION_ENDPOINT", f"email.{AWS_SES_REGION_NAME}.amazonaws.com"
-)
+# Microsoft Graph (the MOC Workspace's mail app) is the production sender: a
+# client-credentials app with the Mail.Send application permission, sending as
+# GRAPH_MAILBOX. Only GRAPH_CLIENT_SECRET is secret — the client and tenant ids
+# are not. See api/graph_email.py.
+GRAPH_CLIENT_ID = os.getenv("GRAPH_CLIENT_ID", "43fbe5a9-6b5b-4c81-9067-7aff9ac3ed5a")
+GRAPH_TENANT_ID = os.getenv("GRAPH_TENANT_ID", "b1504b1d-d096-409a-a0f0-6cc546dde993")
+GRAPH_CLIENT_SECRET = os.getenv("GRAPH_CLIENT_SECRET", "")
+GRAPH_MAILBOX = os.getenv("GRAPH_MAILBOX", "Ethan.Sevenster@moc-pty.com")
 
 _EMAIL_BACKEND = os.getenv("DJANGO_EMAIL_BACKEND", "")
-if "ses" in _EMAIL_BACKEND.lower():
-    # django-ses pulls its credentials from the AWS_* settings above.
+if "graph" in _EMAIL_BACKEND.lower():
     MAILERS = {"default": {"BACKEND": _EMAIL_BACKEND}}
 elif "smtp" in _EMAIL_BACKEND:
     MAILERS = {
