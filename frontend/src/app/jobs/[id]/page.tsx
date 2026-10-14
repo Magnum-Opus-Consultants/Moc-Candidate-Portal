@@ -14,7 +14,7 @@ import {
   SectionHeading,
   StatusBadge,
 } from "@/components/ui/primitives";
-import { api, formatDate } from "@/lib/api";
+import { api, formatDate, skillName } from "@/lib/api";
 
 export default function JobDetailPage({ params }: PageProps<"/jobs/[id]">) {
   return (
@@ -145,10 +145,10 @@ async function JobDetail({ params }: { params: PageProps<"/jobs/[id]">["params"]
               <ul className="mt-3 flex flex-wrap gap-1.5">
                 {job.required_skills.map((skill) => (
                   <li
-                    key={skill}
+                    key={skillName(skill)}
                     className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted"
                   >
-                    {skill}
+                    {skillName(skill)}
                   </li>
                 ))}
               </ul>

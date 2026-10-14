@@ -40,6 +40,8 @@ class JobSerializer(serializers.ModelSerializer):
     new_applicant_count = serializers.IntegerField(read_only=True)
     closes_soon = serializers.BooleanField(read_only=True)
     days_until_close = serializers.IntegerField(read_only=True, allow_null=True)
+    working_hours_label = serializers.CharField(read_only=True)
+    working_hours_count = serializers.IntegerField(read_only=True, allow_null=True)
 
     class Meta:
         model = Job
@@ -68,6 +70,17 @@ class JobSerializer(serializers.ModelSerializer):
             "new_applicant_count",
             "closes_soon",
             "days_until_close",
+            # The detail view
+            "company_industry",
+            "company_location",
+            "about_company",
+            "key_responsibilities",
+            "software_tools",
+            "advantageous_tools",
+            "working_hours_start",
+            "working_hours_end",
+            "working_hours_label",
+            "working_hours_count",
         ]
 
 

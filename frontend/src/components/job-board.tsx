@@ -1,9 +1,13 @@
 import Link from "next/link";
 
-import { SaveButton, ShareButton } from "@/components/job-actions";
+import {
+  ApplyButton,
+  SaveForLaterButton,
+  ShareButton,
+} from "@/components/job-actions";
 import { Icon } from "@/components/ui/icon";
 import { Chip, cn } from "@/components/ui/primitives";
-import { formatDate, relativeDays, type Job } from "@/lib/api";
+import { formatDate, relativeDays, skillName, type Job } from "@/lib/api";
 
 /**
  * The job board surfaces: the filter rail, the result cards and the detail
@@ -218,111 +222,196 @@ export function JobResultCard({
 
 /* --- Detail pane ----------------------------------------------------------- */
 
-export function JobDetailPane({ job }: { job: Job }) {
+/* --- Detail pane ----------------------------------------------------------- */
+
+const SKILL_LEVEL_LABEL: Record<string, string> = {
+  required: "required",
+  preferred: "preferred",
+  optional: "optional",
+};
+
+/** Skills grouped the way the detail view lists them: required first. */
+function skillLevel(entry: { name: string; level?: string } | string): string {
+  return typeof entry === "string" ? "required" : (entry.level ?? "required");
+}
+
+const LEVEL_ORDER = ["required", "preferred", "optional"];
+
+/**
+ * The working day drawn on a 24-hour scale, as the detail view shows it.
+ *
+ * A shift that runs past midnight wraps, so it is drawn as two bars rather
+ * than one that would otherwise read backwards.
+ */
+function WorkingHours({ job }: { job: Job }) {
+  const start = job.working_hours_start;
+  const end = job.working_hours_end;
+  if (start === null || end === null) return null;
+
+  const wraps = end <= start;
+  const bars = wraps
+    ? [
+        { from: start, to: 24 },
+        { from: 0, to: end },
+      ]
+    : [{ from: start, to: end }];
+
   return (
-    <div className="flex h-full flex-col">
-      <div className="border-b border-line px-7 py-6">
-        <h2 className="text-2xl font-semibold leading-tight tracking-tight text-ink-strong">
-          {job.title}
-        </h2>
-
-        <a
-          href="https://moc-pty.com"
-          className="mt-2 inline-flex items-center gap-1.5 text-[15px] font-medium text-brand-700 underline underline-offset-4 hover:text-brand-800"
-        >
-          {job.company}
-          <Icon name="external" className="size-3.5" />
-        </a>
-
-        <p className="mt-1 text-sm text-ink">
-          {job.salary_label}
-          <span className="text-ink-subtle"> · </span>
-          {job.employment_label}
-          <span className="text-ink-subtle"> · </span>
-          {job.work_setup_label}
-        </p>
-
-        <div className="mt-5 flex flex-wrap items-center gap-2">
-          <Link
-            href={`/jobs/${job.id}`}
-            className="rounded-full bg-brand-700 px-7 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-800"
-          >
-            Apply now
-          </Link>
-          <SaveButton jobId={job.id} initialSaved={job.is_saved ?? false} />
-          <ShareButton jobId={job.id} />
-        </div>
-
-        {/*
-          Browsing is open to anyone; applying needs a profile. Saying so here
-          means the sign-up on the next screen is expected rather than a wall.
-        */}
-        <p className="mt-3 text-xs leading-relaxed text-ink-muted">
-          Applying takes you through your MOC profile first. Upload a PDF CV and
-          we fill in most of it for you.
+    <section className="mt-6">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="font-semibold text-ink-strong">
+          Working hours ({job.timezone_label})
+        </h3>
+        <p className="text-xs text-ink-muted">
+          {job.working_hours_count} hours
+          {wraps ? " · overnight" : ""}
         </p>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-7 py-6">
-        <section>
-          <h3 className="text-lg font-semibold text-ink-strong">Job details</h3>
-          <ul className="mt-4 space-y-3">
-            {(
-              [
-                ["wallet", job.salary_label],
-                ["clock", job.employment_label],
-                ["pin", job.work_setup_label],
-                ["users", `${job.experience_label} level`],
-                ["calendar", `Applications close ${formatDate(job.closes_at)}`],
-              ] as const
-            ).map(([icon, value]) => (
-              <li key={value} className="flex items-center gap-3 text-sm text-ink">
-                <Icon name={icon} className="size-4 shrink-0 text-ink-subtle" />
-                {value}
-              </li>
-            ))}
-          </ul>
-        </section>
+      <div className="mt-4">
+        <div className="relative h-2 rounded-full bg-card-muted">
+          {bars.map((bar) => (
+            <div
+              key={`${bar.from}-${bar.to}`}
+              className="absolute inset-y-0 rounded-full bg-brand-300"
+              style={{
+                left: `${(bar.from / 24) * 100}%`,
+                width: `${((bar.to - bar.from) / 24) * 100}%`,
+              }}
+            />
+          ))}
+        </div>
 
-        <hr className="my-6 border-line" />
+        <div className="mt-2 flex justify-between text-[11px] text-ink-subtle">
+          {[0, 3, 6, 9, 12, 15, 18, 21, 24].map((hour) => (
+            <span key={hour}>{String(hour % 24).padStart(2, "0")}</span>
+          ))}
+        </div>
 
-        <section>
-          <h3 className="text-lg font-semibold text-ink-strong">
-            Full job description
-          </h3>
-          <p className="mt-3 leading-relaxed text-ink-muted">{job.description}</p>
+        <p className="mt-2 text-sm text-ink">{job.working_hours_label}</p>
+      </div>
+    </section>
+  );
+}
 
-          {job.required_skills.length > 0 ? (
-            <>
-              <h4 className="mt-6 font-semibold text-ink-strong">
-                Skills and tools
-              </h4>
-              <ul className="mt-3 flex flex-wrap gap-1.5">
-                {job.required_skills.map((skill) => (
-                  <li key={skill}>
-                    <Chip>{skill}</Chip>
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : null}
-        </section>
+export function JobDetailPane({ job }: { job: Job }) {
+  const skills = [...job.required_skills].sort(
+    (a, b) => LEVEL_ORDER.indexOf(skillLevel(a)) - LEVEL_ORDER.indexOf(skillLevel(b)),
+  );
 
-        <hr className="my-6 border-line" />
+  return (
+    <div className="flex h-full flex-col">
+      <div className="border-b border-line px-7 py-6">
+        <div className="flex items-start justify-between gap-4">
+          <h2 className="text-2xl font-semibold leading-tight tracking-tight text-ink-strong">
+            {job.title}
+          </h2>
+          <span className="shrink-0 pt-1 text-xs text-ink-subtle">
+            Job ID: {job.id}
+          </span>
+        </div>
 
-        <p className="text-xs leading-relaxed text-ink-subtle">
-          Magnum Opus Consultants is the legal employer in South Africa. We
-          handle onboarding, HR, payroll and compliance, so you work with an
-          international team on a local contract.
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          <Chip icon={<Icon name="building" className="size-3" />}>
+            {job.work_setup_label}
+          </Chip>
+          <Chip>{job.salary_label}</Chip>
+          <Chip>{job.experience_label}</Chip>
+          <Chip>{job.employment_label}</Chip>
+        </div>
+
+        <p className="mt-4 text-sm leading-relaxed text-ink">
+          This {job.work_setup_label.toLowerCase()} job is based in{" "}
+          {job.location || job.company_location} for a{" "}
+          {job.company_industry.toLowerCase() || "professional services"} company
+          in {job.company_location || job.location}.
         </p>
 
-        <Link
-          href={`/jobs/${job.id}`}
-          className="mt-5 inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:underline"
-        >
-          Open this job on its own page
-          <Icon name="chevron-right" className="size-3.5" />
-        </Link>
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          <ApplyButton
+            jobId={job.id}
+            initialApplied={job.has_applied ?? false}
+            className="min-w-48 flex-1"
+          />
+          <SaveForLaterButton jobId={job.id} initialSaved={job.is_saved ?? false} />
+          <ShareButton jobId={job.id} />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-7 py-6">
+        {job.about_company ? (
+          <section>
+            <h3 className="font-semibold text-ink-strong">About the company:</h3>
+            <p className="mt-2 leading-relaxed text-ink-muted">
+              {job.about_company}
+            </p>
+          </section>
+        ) : null}
+
+        {job.key_responsibilities.length > 0 ? (
+          <section className="mt-6">
+            <h3 className="font-semibold text-ink-strong">Key responsibilities:</h3>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-ink-muted">
+              {job.key_responsibilities.map((item) => (
+                <li key={item} className="leading-relaxed">
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
+        {skills.length > 0 ? (
+          <section className="mt-6">
+            <h3 className="font-semibold text-ink-strong">Skills:</h3>
+            <ul className="mt-2 space-y-1 text-ink-muted">
+              {skills.map((skill) => (
+                <li key={skillName(skill)}>
+                  {skillName(skill)}{" "}
+                  <span className="text-ink-subtle">
+                    ({SKILL_LEVEL_LABEL[skillLevel(skill)] ?? skillLevel(skill)})
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
+        {job.software_tools.length > 0 ? (
+          <section className="mt-6">
+            <h3 className="font-semibold text-ink-strong">Software tools:</h3>
+            <ul className="mt-2 space-y-1 text-ink-muted">
+              {job.software_tools.map((tool) => (
+                <li key={tool.name}>
+                  {tool.name}{" "}
+                  <span className="text-ink-subtle">({tool.proficiency})</span>
+                </li>
+              ))}
+            </ul>
+            {job.advantageous_tools.length > 0 ? (
+              <p className="mt-2 text-ink-muted">
+                {job.advantageous_tools.join(" and ")} would be advantageous.
+              </p>
+            ) : null}
+          </section>
+        ) : null}
+
+        <WorkingHours job={job} />
+
+        <div className="mt-8 border-t border-line pt-5 text-center">
+          <Link
+            href={`/jobs/${job.id}`}
+            className="text-sm font-medium text-brand-700 hover:underline"
+          >
+            View additional details
+          </Link>
+        </div>
+      </div>
+
+      <div className="border-t border-line bg-card-muted px-7 py-3">
+        <p className="text-xs text-ink-subtle">
+          Last edited on {formatDate(job.updated_at)}
+        </p>
       </div>
     </div>
   );

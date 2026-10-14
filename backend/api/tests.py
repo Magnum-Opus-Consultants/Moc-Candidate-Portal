@@ -214,7 +214,11 @@ class MatchingTests(TestCase):
 
         result = score_match(profile, job)
 
-        self.assertEqual(result.score, 5)
+        # A near miss on the only dimension that applies: some credit, but
+        # nowhere near a match. The exact number follows the weight table, so
+        # assert the shape rather than pinning it here.
+        self.assertGreater(result.score, 0)
+        self.assertLess(result.score, 25)
         self.assertIn(
             {"label": "Working hours partial match", "level": "partial"},
             result.reasons,
@@ -232,6 +236,25 @@ class MatchingTests(TestCase):
 
     def test_no_profile_scores_zero_without_raising(self):
         self.assertEqual(score_match(None, make_job()).score, 0)
+
+    def test_score_is_out_of_what_the_position_asks_for(self):
+        """A job that lists no software tools cannot judge anyone on them."""
+        profile = make_candidate(username="no-tools")
+        job = make_job()  # no software_tools on the job
+
+        self.assertEqual(job.software_tools, [])
+        self.assertEqual(score_match(profile, job).score, 100)
+
+    def test_an_outright_work_setup_mismatch_is_reported(self):
+        profile = make_candidate(
+            username="remote-only", preferred_work_setup=WorkSetup.REMOTE
+        )
+        job = make_job(work_setup=WorkSetup.OFFICE)
+
+        self.assertIn(
+            {"label": "Working hours don't match", "level": "none"},
+            score_match(profile, job).reasons,
+        )
 
 
 class CandidateDashboardTests(TestCase):

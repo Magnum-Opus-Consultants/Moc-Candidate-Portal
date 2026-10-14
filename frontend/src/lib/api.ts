@@ -21,7 +21,11 @@ function apiBase(): string {
 
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
-export type MatchReason = { label: string; level: "match" | "partial" };
+/** "none" is an outright mismatch, which the designs colour red. */
+export type MatchReason = {
+  label: string;
+  level: "match" | "partial" | "none";
+};
 export type Match = { score: number; reasons: MatchReason[] };
 
 export type Job = {
@@ -41,7 +45,8 @@ export type Job = {
   timezone_label: string;
   status: string;
   status_label: string;
-  required_skills: string[];
+  /** {name, level} where level is required / preferred / optional. */
+  required_skills: Array<{ name: string; level: string } | string>;
   posted_at: string | null;
   closes_at: string | null;
   updated_at: string;
@@ -50,6 +55,18 @@ export type Job = {
   /** Closing inside the next week, so the UI can warn. */
   closes_soon: boolean;
   days_until_close: number | null;
+
+  // The detail view
+  company_industry: string;
+  company_location: string;
+  about_company: string;
+  key_responsibilities: string[];
+  software_tools: SkillEntry[];
+  advantageous_tools: string[];
+  working_hours_start: number | null;
+  working_hours_end: number | null;
+  working_hours_label: string;
+  working_hours_count: number | null;
   match?: Match;
   saved_at?: string;
   viewed_at?: string;
@@ -487,7 +504,7 @@ export const api = {
  * and the seed hold plain strings. Mirrors CandidateProfile.skill_names on the
  * backend.
  */
-export function skillName(entry: SkillEntry | string): string {
+export function skillName(entry: { name: string } | string): string {
   return typeof entry === "string" ? entry : entry.name;
 }
 

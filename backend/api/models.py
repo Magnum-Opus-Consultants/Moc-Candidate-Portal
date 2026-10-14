@@ -323,7 +323,25 @@ class Job(models.Model):
     status = models.CharField(
         max_length=20, choices=JobStatus.choices, default=JobStatus.DRAFT
     )
+    # [{"name": "Figma", "level": "required"}] — level is required /
+    # preferred / optional, as the job detail view groups them. Older rows
+    # hold plain strings; read names through required_skill_names.
     required_skills = models.JSONField(default=list, blank=True)
+    # [{"name": "Jira", "proficiency": "advanced"}]
+    software_tools = models.JSONField(default=list, blank=True)
+
+    # --- The detail view -----------------------------------------------
+    company_industry = models.CharField(max_length=120, blank=True)
+    company_location = models.CharField(max_length=120, blank=True)
+    about_company = models.TextField(blank=True)
+    key_responsibilities = models.JSONField(default=list, blank=True)
+    advantageous_tools = models.JSONField(default=list, blank=True)
+
+    # Working hours, as whole hours on a 24-hour clock in the job's own time
+    # zone (timezone_label). The detail view draws them on a day-long scale.
+    working_hours_start = models.PositiveSmallIntegerField(null=True, blank=True)
+    working_hours_end = models.PositiveSmallIntegerField(null=True, blank=True)
+
     posted_at = models.DateTimeField(null=True, blank=True)
     closes_at = models.DateTimeField(null=True, blank=True)
     created_by = models.ForeignKey(
@@ -342,6 +360,36 @@ class Job(models.Model):
     def is_publicly_listed(self) -> bool:
         """Draft, private and closed jobs never reach the public job list."""
         return self.status in {JobStatus.ACTIVE, JobStatus.PAUSED}
+
+    @property
+    def required_skill_names(self) -> list[str]:
+        """Skill names, whichever shape the list is in.
+
+        Mirrors CandidateProfile.skill_names: the job form stores
+        {"name", "level"} objects, older rows and the seed hold strings, and
+        matching only ever needs the name.
+        """
+        names = []
+        for entry in self.required_skills or []:
+            name = entry.get("name", "") if isinstance(entry, dict) else entry
+            if str(name).strip():
+                names.append(str(name))
+        return names
+
+    @property
+    def working_hours_label(self) -> str:
+        """e.g. "08:00 - 17:00", or empty when the hours are not set."""
+        if self.working_hours_start is None or self.working_hours_end is None:
+            return ""
+        return f"{self.working_hours_start:02d}:00 - {self.working_hours_end:02d}:00"
+
+    @property
+    def working_hours_count(self) -> int | None:
+        """Length of the working day, wrapping over midnight for night shifts."""
+        if self.working_hours_start is None or self.working_hours_end is None:
+            return None
+        span = self.working_hours_end - self.working_hours_start
+        return span if span > 0 else span + 24
 
     # A posting counts as closing soon inside this window, which is what
     # drives the "Closing soon!" flag on the saved jobs list.

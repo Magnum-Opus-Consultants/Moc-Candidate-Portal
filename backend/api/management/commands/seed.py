@@ -424,6 +424,10 @@ class Command(BaseCommand):
                     "experience_level": spec["experience_level"],
                     "preferred_work_setup": spec["preferred_work_setup"],
                     "skills": spec["skills"],
+                    "software_tools": [
+                        {"name": "Jira", "proficiency": "intermediate"},
+                        {"name": "Slack", "proficiency": "advanced"},
+                    ],
                     "section_progress": spec["progress"],
                     "summary": (
                         f"{spec['headline']} based in {spec['location']}, working "
@@ -437,17 +441,61 @@ class Command(BaseCommand):
     def _seed_jobs(self, manager: User) -> list[Job]:
         now = timezone.now()
         jobs = []
+        industries = {
+            "Meridian Health Group": ("Healthcare", "Pretoria"),
+            "Streamline Logistics": ("Logistics", "Johannesburg"),
+            "Northbridge Financial": ("Financial services", "Cape Town"),
+            "Oakline Retail": ("Retail", "Durban"),
+        }
+
         for index, spec in enumerate(JOBS):
             posted = (
                 None
                 if spec["status"] == JobStatus.DRAFT
                 else now - timezone.timedelta(days=3 + index * 5)
             )
+            industry, company_location = industries.get(
+                spec["company"], ("Professional services", spec.get("location", ""))
+            )
+
+            # Skills carry a requirement level for the detail view: the first
+            # two are required, the next preferred, the rest optional.
+            levelled_skills = [
+                {
+                    "name": name,
+                    "level": "required" if i < 2 else "preferred" if i == 2 else "optional",
+                }
+                for i, name in enumerate(spec["required_skills"])
+            ]
+
             job, _ = Job.objects.update_or_create(
                 title=spec["title"],
                 company=spec["company"],
                 defaults={
                     **spec,
+                    "required_skills": levelled_skills,
+                    "software_tools": [
+                        {"name": "Jira", "proficiency": "advanced"},
+                        {"name": "Slack", "proficiency": "intermediate"},
+                    ],
+                    "advantageous_tools": ["Notion", "Looker"],
+                    "company_industry": industry,
+                    "company_location": company_location,
+                    "about_company": (
+                        f"{spec['company']} is a {industry.lower()} company based in "
+                        f"{company_location}. The team works with Magnum Opus "
+                        "Consultants, who act as the legal employer in South Africa "
+                        "and handle onboarding, HR, payroll and compliance."
+                    ),
+                    "key_responsibilities": [
+                        "Own your area of the product end to end.",
+                        "Work closely with the rest of the team day to day.",
+                        "Keep quality and accessibility high as the work ships.",
+                        "Share what you learn so the team gets better with you.",
+                        "Help shape how the team works, not only what it builds.",
+                    ],
+                    "working_hours_start": 8 if index % 2 == 0 else 10,
+                    "working_hours_end": 17 if index % 2 == 0 else 19,
                     "posted_at": posted,
                     "closes_at": now + timezone.timedelta(days=30 - index * 2),
                     "created_by": manager,
