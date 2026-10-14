@@ -342,3 +342,49 @@ class HealthTests(TestCase):
         response = self.client.get(reverse("api:health"))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "ok")
+
+
+class CsrfProtectionTests(TestCase):
+    """State-changing endpoints must reject a request with no CSRF token.
+
+    Authentication is a session cookie, so without this a malicious page
+    could change a signed-in user's password or delete their account by
+    POSTing cross-site with the browser's cookie attached.
+    """
+
+    def setUp(self):
+        from django.test import Client
+
+        self.profile = make_candidate(username="csrf-seeker")
+        self.profile.user.set_password("portal-demo")
+        self.profile.user.save()
+        # enforce_csrf_checks mirrors a real browser; the default client skips it.
+        self.client = Client(enforce_csrf_checks=True)
+        self.client.force_login(self.profile.user)
+
+    def test_apply_without_a_token_is_refused(self):
+        job = make_job()
+        response = self.client.post(reverse("api:job-apply", args=[job.id]))
+        self.assertEqual(response.status_code, 403)
+
+    def test_changing_the_password_without_a_token_is_refused(self):
+        response = self.client.post(
+            reverse("api:account-password"),
+            data={"current_password": "portal-demo", "new_password": "hijacked1"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+        self.profile.user.refresh_from_db()
+        self.assertTrue(self.profile.user.check_password("portal-demo"))
+
+    def test_deleting_the_account_without_a_token_is_refused(self):
+        response = self.client.post(reverse("api:account-delete"))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(User.objects.filter(pk=self.profile.user.pk).exists())
+
+    def test_saving_a_job_without_a_token_is_refused(self):
+        job = make_job()
+        response = self.client.post(reverse("api:job-save", args=[job.id]))
+        self.assertEqual(response.status_code, 403)

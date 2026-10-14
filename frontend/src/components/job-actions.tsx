@@ -127,3 +127,94 @@ export function ShareButton({ jobId }: { jobId: number }) {
     </button>
   );
 }
+
+/**
+ * Apply for a job in one step (Development Plan, Day 5).
+ *
+ * The application carries the seeker's saved profile; the server enforces
+ * one per position and answers 409 if they have already applied, which is
+ * shown rather than swallowed. An anonymous visitor is sent to sign in, and
+ * a seeker without a profile to the profile form, because that is what the
+ * backend asks for.
+ */
+export function ApplyButton({
+  jobId,
+  initialApplied = false,
+  className,
+  children = "Apply now",
+}: {
+  jobId: number;
+  initialApplied?: boolean;
+  className?: string;
+  children?: React.ReactNode;
+}) {
+  const router = useRouter();
+  const [applied, setApplied] = useState(initialApplied);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  async function apply() {
+    setBusy(true);
+    setMessage(null);
+    setFailed(false);
+
+    const result = await api.applyToJob(jobId);
+    setBusy(false);
+
+    if (result.ok) {
+      setApplied(true);
+      setMessage(result.data.detail);
+      router.refresh();
+      return;
+    }
+
+    if (result.status === 401 || result.status === 403) {
+      router.push(`/signin?next=/jobs/${jobId}`);
+      return;
+    }
+    if (result.status === 409 && /profile/i.test(result.error)) {
+      router.push("/portal/profile/complete");
+      return;
+    }
+    if (result.status === 409) {
+      // Already applied, or the posting closed while the page was open.
+      setApplied(/already applied/i.test(result.error));
+    }
+    setFailed(true);
+    setMessage(result.error);
+  }
+
+  if (applied) {
+    return (
+      <span className={cn("inline-flex flex-col items-end gap-1", className)}>
+        <span className="rounded-lg bg-brand-100 px-4 py-2 text-sm font-medium text-brand-300">
+          Already applied
+        </span>
+        {message && !failed ? (
+          <span role="status" className="text-xs text-status-green">
+            {message}
+          </span>
+        ) : null}
+      </span>
+    );
+  }
+
+  return (
+    <span className={cn("inline-flex flex-col items-end gap-1", className)}>
+      <button
+        type="button"
+        onClick={apply}
+        disabled={busy}
+        className="rounded-lg bg-brand-700 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-800 disabled:bg-brand-100 disabled:text-brand-300"
+      >
+        {busy ? "Applying…" : children}
+      </button>
+      {message && failed ? (
+        <span role="alert" className="text-xs text-status-rose">
+          {message}
+        </span>
+      ) : null}
+    </span>
+  );
+}

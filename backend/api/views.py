@@ -312,7 +312,6 @@ def candidate_profile(request):
     return Response(CandidateProfileSerializer(profile).data)
 
 
-@csrf_exempt
 def update_candidate_profile(request):
     """Fill in / edit the signed-in seeker's profile. Plain CSRF-exempt JSON
     view (like the account endpoints) so the session-cookie client can POST
@@ -410,7 +409,6 @@ def update_candidate_profile(request):
     return JsonResponse(CandidateProfileSerializer(profile).data)
 
 
-@csrf_exempt
 def toggle_saved_job(request, job_id: int):
     """Save / unsave a job for the signed-in seeker. Anonymous visitors get a
     401 so the button can send them to sign in."""
@@ -535,10 +533,25 @@ def candidate_saved_jobs(request):
     if seeker is None:
         return Response({"results": []})
     saved = SavedJob.objects.filter(candidate=seeker).select_related("job")
+
+    # The saved list shows "Apply now" or "Already applied" per row, so it
+    # needs to know which of these the seeker has already applied for. One
+    # query rather than one per row.
+    applied_ids = set(
+        Application.objects.filter(
+            candidate=seeker, job__in=[entry.job_id for entry in saved]
+        ).values_list("job_id", flat=True)
+    )
+
     return Response(
         {
             "results": [
-                {**JobSerializer(entry.job).data, "saved_at": entry.saved_at}
+                {
+                    **JobSerializer(entry.job).data,
+                    "saved_at": entry.saved_at,
+                    "is_saved": True,
+                    "has_applied": entry.job_id in applied_ids,
+                }
                 for entry in saved
             ]
         }

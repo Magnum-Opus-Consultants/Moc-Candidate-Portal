@@ -22,7 +22,7 @@ from django.contrib.auth import (
 )
 from django.core.mail import EmailMultiAlternatives
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
 from .models import Role, User
@@ -161,13 +161,13 @@ def logout_view(request):
 
 
 @require_http_methods(["GET"])
+@ensure_csrf_cookie
 def me(request):
     if not request.user.is_authenticated:
         return JsonResponse({"detail": "Not signed in."}, status=401)
     return JsonResponse(_payload(request.user))
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def update_profile(request):
     if not request.user.is_authenticated:
@@ -184,7 +184,6 @@ def update_profile(request):
     return JsonResponse(_payload(user))
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def change_email(request):
     if not request.user.is_authenticated:
@@ -199,7 +198,6 @@ def change_email(request):
     return JsonResponse(_payload(request.user))
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def change_password(request):
     if not request.user.is_authenticated:
@@ -219,7 +217,6 @@ def change_password(request):
     return JsonResponse({"ok": True})
 
 
-@csrf_exempt
 @require_http_methods(["POST", "DELETE"])
 def delete_account(request):
     """Remove access. Per the SOW the candidate's data is retained so MOC can

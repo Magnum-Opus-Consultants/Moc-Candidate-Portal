@@ -47,6 +47,9 @@ export type Job = {
   updated_at: string;
   applicant_count: number;
   new_applicant_count: number;
+  /** Closing inside the next week, so the UI can warn. */
+  closes_soon: boolean;
+  days_until_close: number | null;
   match?: Match;
   saved_at?: string;
   viewed_at?: string;
@@ -346,18 +349,57 @@ async function get<T>(path: string): Promise<ApiResult<T>> {
   }
 }
 
+
+/**
+ * The Django CSRF token for the current session.
+ *
+ * Auth is a session cookie, so every state-changing request must carry the
+ * matching CSRF token or Django rejects it. In the browser the token is read
+ * from the csrftoken cookie, and if it is not there yet one GET of /auth/me/
+ * (which is decorated with ensure_csrf_cookie) issues it. On the server the
+ * token comes from the forwarded cookie header.
+ */
+function readCookie(jar: string, name: string): string {
+  const match = jar.match(new RegExp(`(?:^|;\s*)${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
+async function csrfToken(forwarded: Record<string, string>): Promise<string> {
+  if (typeof window === "undefined") {
+    return readCookie(forwarded.cookie ?? "", "csrftoken");
+  }
+
+  const existing = readCookie(document.cookie, "csrftoken");
+  if (existing) return existing;
+
+  // No cookie yet — this is the visitor's first state-changing request.
+  try {
+    await fetch(`${apiBase()}/api/auth/me/`, {
+      credentials: "include",
+      cache: "no-store",
+    });
+  } catch {
+    /* offline; the request below will surface the real error */
+  }
+  return readCookie(document.cookie, "csrftoken");
+}
+
 async function send<T = unknown>(
   method: "POST" | "DELETE",
   path: string,
   body?: unknown,
 ): Promise<MutationResult<T>> {
   try {
+    const forwarded = await forwardedHeaders();
+    const token = await csrfToken(forwarded);
+
     const response = await fetch(`${apiBase()}${path}`, {
       method,
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
-        ...(await forwardedHeaders()),
+        ...forwarded,
+        ...(token ? { "X-CSRFToken": token } : {}),
       },
       credentials: "include",
       cache: "no-store",
@@ -400,6 +442,11 @@ export const api = {
     get<Listed<Job>>("/api/candidate/recently-viewed/"),
   updateProfile: (data: Record<string, unknown>) =>
     send<CandidateProfile>("POST", "/api/candidate/profile/update/", data),
+  applyToJob: (id: number | string) =>
+    send<{ detail: string; application: Application }>(
+      "POST",
+      `/api/jobs/${id}/apply/`,
+    ),
   toggleSave: (id: number | string) =>
     send<{ saved: boolean }>("POST", `/api/jobs/${id}/save/`),
 
@@ -458,9 +505,15 @@ export function relativeDays(value: string | null | undefined): string {
   const days = Math.round(
     (Date.now() - new Date(value).getTime()) / (1000 * 60 * 60 * 24),
   );
+  // Wording follows the designs: "1 day ago" rather than "Yesterday", and
+  // whole weeks once past six days.
   if (days <= 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (days < 30) return `${days} days ago`;
+  if (days === 1) return "1 day ago";
+  if (days < 7) return `${days} days ago`;
+  if (days < 30) {
+    const weeks = Math.floor(days / 7);
+    return weeks === 1 ? "1 week ago" : `${weeks} weeks ago`;
+  }
   const months = Math.round(days / 30);
   return months === 1 ? "1 month ago" : `${months} months ago`;
 }

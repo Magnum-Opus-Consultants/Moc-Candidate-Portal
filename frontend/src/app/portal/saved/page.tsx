@@ -1,9 +1,12 @@
 import { Suspense } from "react";
 
 import { JobRow } from "@/components/job-cards";
+import { SavedJobRow } from "@/components/saved-job-row";
 import { BackendOffline, PageSkeleton } from "@/components/states";
-import { EmptyState, PageHeading, SectionHeading } from "@/components/ui/primitives";
+import { Button, Card, SectionHeading } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
+
+export const metadata = { title: "Saved Jobs" };
 
 export default function SavedJobsPage() {
   return (
@@ -26,22 +29,32 @@ async function SavedJobs() {
 
   return (
     <div className="space-y-8">
-      <PageHeading
-        title="Saved Jobs"
-        subtext="Roles you kept for later, newest first."
-      />
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink-strong">
+          Saved Jobs
+        </h1>
+        <p className="mt-1 text-sm text-ink-muted">
+          Review and apply to your saved jobs
+        </p>
+      </div>
 
       {saved.length === 0 ? (
-        <EmptyState
-          title="Nothing saved yet"
-          body="Use Save for later on any job and it will appear here."
-        />
+        <Card className="p-12 text-center">
+          <p className="font-medium text-ink-strong">Nothing saved yet</p>
+          <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-ink-muted">
+            Use Save for later on any job and it will appear here, ready to
+            apply when you are.
+          </p>
+          <Button href="/" size="sm" className="mt-5">
+            Browse open positions
+          </Button>
+        </Card>
       ) : (
-        <div className="space-y-2">
+        <ul className="space-y-3">
           {saved.map((job) => (
-            <JobRow key={job.id} job={job} context="saved" />
+            <SavedJobRow key={job.id} job={job} />
           ))}
-        </div>
+        </ul>
       )}
 
       {viewed.length > 0 ? (

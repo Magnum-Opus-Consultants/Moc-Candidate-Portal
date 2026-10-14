@@ -343,6 +343,23 @@ class Job(models.Model):
         """Draft, private and closed jobs never reach the public job list."""
         return self.status in {JobStatus.ACTIVE, JobStatus.PAUSED}
 
+    # A posting counts as closing soon inside this window, which is what
+    # drives the "Closing soon!" flag on the saved jobs list.
+    CLOSING_SOON_DAYS = 7
+
+    @property
+    def days_until_close(self) -> int | None:
+        if not self.closes_at:
+            return None
+        return (self.closes_at - timezone.now()).days
+
+    @property
+    def closes_soon(self) -> bool:
+        days = self.days_until_close
+        if days is None or not self.is_publicly_listed:
+            return False
+        return 0 <= days <= self.CLOSING_SOON_DAYS
+
     @property
     def applicant_count(self) -> int:
         return self.applications.count()

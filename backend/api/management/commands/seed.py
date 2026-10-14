@@ -519,9 +519,26 @@ class Command(BaseCommand):
         open_jobs = [j for j in jobs if j.status == JobStatus.ACTIVE]
         primary = candidates[0]
 
-        for job in open_jobs[:3]:
-            SavedJob.objects.get_or_create(job=job, candidate=primary)
+        # Saved jobs, staggered so the list shows every state the design has:
+        # saved today through a week ago, some already applied for, and one
+        # closing soon.
+        now = timezone.now()
+        ages = [0, 1, 2, 3, 7]
+        for index, job in enumerate(open_jobs[: len(ages)]):
+            saved, created = SavedJob.objects.get_or_create(
+                job=job, candidate=primary
+            )
+            if created:
+                saved.saved_at = now - timezone.timedelta(days=ages[index])
+                saved.save(update_fields=["saved_at"])
             ViewedJob.objects.get_or_create(job=job, candidate=primary)
+
+        # The oldest saved posting closes inside the week, so the list has a
+        # "Closing soon!" row to render.
+        if len(open_jobs) >= len(ages):
+            closing = open_jobs[len(ages) - 1]
+            closing.closes_at = now + timezone.timedelta(days=4)
+            closing.save(update_fields=["closes_at"])
 
         for candidate in candidates[:3]:
             CandidateBookmark.objects.get_or_create(manager=manager, candidate=candidate)
