@@ -13,7 +13,7 @@ import {
   PageHeading,
   StatusBadge,
 } from "@/components/ui/primitives";
-import { api } from "@/lib/api";
+import { api, skillName } from "@/lib/api";
 
 export default function CandidateDatabasePage() {
   return (
@@ -82,7 +82,7 @@ async function CandidateDatabase() {
 
                 <div className="hidden flex-wrap gap-1.5 lg:flex">
                   {candidate.skills.slice(0, 3).map((skill) => (
-                    <Chip key={skill}>{skill}</Chip>
+                    <Chip key={skillName(skill)}>{skillName(skill)}</Chip>
                   ))}
                 </div>
 

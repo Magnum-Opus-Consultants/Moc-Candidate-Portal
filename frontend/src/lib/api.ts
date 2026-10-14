@@ -6,8 +6,18 @@
  * common case in local development, when only one half is running.
  */
 
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
+
+/**
+ * Where to send API requests.
+ * - Browser: the configured URL, or "" (relative) in dev so requests ride the
+ *   same-origin /api rewrite — which keeps cookies and CORS happy.
+ * - Server (SSR): must be absolute — the configured URL, else the dev backend.
+ */
+function apiBase(): string {
+  if (typeof window !== "undefined") return API_BASE_URL;
+  return API_BASE_URL || process.env.DEV_API_PROXY || "http://127.0.0.1:8001";
+}
 
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -60,21 +70,108 @@ export type ProfileSection = {
   completed: boolean;
 };
 
+export type SkillEntry = {
+  name: string;
+  proficiency: string;
+  importance?: string;
+};
+
+export type LanguageEntry = { language: string; proficiency: string };
+
+export type WorkExperienceEntry = {
+  id?: number;
+  job_title: string;
+  company_name: string;
+  employment_type: string;
+  start_date: string | null;
+  end_date: string | null;
+  is_current: boolean;
+  reason_for_leaving: string;
+  key_responsibilities: string[];
+};
+
 export type CandidateProfile = {
   id: number;
   user: UserSummary;
+
+  // Personal details
   headline: string;
+  preferred_name: string;
+  country_of_residence: string;
   location: string;
+  profile_status: string;
+  languages: LanguageEntry[];
+  linkedin_url: string;
+  portfolio_url: string;
+  photo_url: string;
   summary: string;
-  skills: string[];
+
+  // Optional EE information
+  gender: string;
+  nationality: string;
+  citizenship: string;
+  ethnicity: string;
+  has_disability: boolean | null;
+  disability_detail: string;
+
+  // Career details
   role_category: string;
+  secondary_role_category: string;
+  employment_status: string;
+  availability: string;
   experience_level: string;
   preferred_work_setup: string;
+  timezone_availability: string;
+  night_shift: string;
+
+  // Education
+  highest_education_level: string;
+  field_of_study: string;
+  graduation_year: number | null;
+  institution_name: string;
+
+  // Experience
+  experience: WorkExperienceEntry[];
+
+  // Remuneration & benefits
+  current_salary_currency: string;
+  current_salary_amount: string | null;
+  current_salary_period: string;
+  expected_salary_currency: string;
+  expected_salary_amount: string | null;
+  expected_salary_period: string;
+  benefits: string[];
+
+  // Skills & tools. Older rows hold plain strings.
+  skills: Array<SkillEntry | string>;
+  software_tools: SkillEntry[];
+
+  // Privacy & profile sharing
+  do_not_share_with: string;
+  sharing_agreed: boolean;
+
+  // Derived
   completion: number;
   strength: string;
   can_download_branded_cv: boolean;
   sections: ProfileSection[];
   updated_at: string;
+};
+
+/** Choice lists for the profile form's dropdowns, from /api/options/. */
+export type ProfileOptions = {
+  profile_status: Array<{ value: string; label: string }>;
+  employment_status: Array<{ value: string; label: string }>;
+  availability: Array<{ value: string; label: string }>;
+  experience_level: Array<{ value: string; label: string }>;
+  work_setup: Array<{ value: string; label: string }>;
+  employment_type: Array<{ value: string; label: string }>;
+  night_shift: Array<{ value: string; label: string }>;
+  education_level: Array<{ value: string; label: string }>;
+  proficiency: Array<{ value: string; label: string }>;
+  salary_period: Array<{ value: string; label: string }>;
+  importance: Array<{ value: string; label: string }>;
+  role_categories: string[];
 };
 
 export type ApplicationEvent = {
@@ -230,7 +327,7 @@ async function forwardedHeaders(): Promise<Record<string, string>> {
 
 async function get<T>(path: string): Promise<ApiResult<T>> {
   try {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
+    const response = await fetch(`${apiBase()}${path}`, {
       headers: { Accept: "application/json", ...(await forwardedHeaders()) },
       cache: "no-store",
       credentials: "include",
@@ -255,7 +352,7 @@ async function send<T = unknown>(
   body?: unknown,
 ): Promise<MutationResult<T>> {
   try {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
+    const response = await fetch(`${apiBase()}${path}`, {
       method,
       headers: {
         Accept: "application/json",
@@ -288,10 +385,13 @@ type Listed<T> = { results: T[] };
 export const api = {
   jobs: (query = "") => get<Listed<Job>>(`/api/jobs/${query}`),
   jobCategories: () => get<Listed<JobCategory>>("/api/jobs/categories/"),
+  profileOptions: () => get<ProfileOptions>("/api/options/"),
   job: (id: number | string) => get<Job>(`/api/jobs/${id}/`),
 
   candidateDashboard: () => get<CandidateDashboard>("/api/candidate/dashboard/"),
   candidateProfile: () => get<CandidateProfile>("/api/candidate/profile/"),
+  updateCandidateProfile: (patch: Record<string, unknown>) =>
+    send<CandidateProfile>("POST", "/api/candidate/profile/update/", patch),
   candidateApplications: (query = "") =>
     get<ApplicationList>(`/api/candidate/applications/${query}`),
   candidateSaved: () => get<Listed<Job>>("/api/candidate/saved/"),
@@ -300,6 +400,8 @@ export const api = {
     get<Listed<Job>>("/api/candidate/recently-viewed/"),
   updateProfile: (data: Record<string, unknown>) =>
     send<CandidateProfile>("POST", "/api/candidate/profile/update/", data),
+  toggleSave: (id: number | string) =>
+    send<{ saved: boolean }>("POST", `/api/jobs/${id}/save/`),
 
   managerDashboard: () => get<ManagerDashboard>("/api/manager/dashboard/"),
   managerJobs: (query = "") => get<Listed<Job>>(`/api/manager/jobs/${query}`),
@@ -330,6 +432,17 @@ export const api = {
 };
 
 /* --- Formatting helpers shared by the pages -------------------------------- */
+
+/**
+ * A skill's name, whichever shape it is in.
+ *
+ * The profile form stores {name, proficiency, importance} objects; older rows
+ * and the seed hold plain strings. Mirrors CandidateProfile.skill_names on the
+ * backend.
+ */
+export function skillName(entry: SkillEntry | string): string {
+  return typeof entry === "string" ? entry : entry.name;
+}
 
 export function formatDate(value: string | null | undefined): string {
   if (!value) return "—";

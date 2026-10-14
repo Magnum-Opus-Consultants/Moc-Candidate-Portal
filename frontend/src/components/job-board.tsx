@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { SaveButton, ShareButton } from "@/components/job-actions";
 import { Icon } from "@/components/ui/icon";
 import { Chip, cn } from "@/components/ui/primitives";
 import { formatDate, relativeDays, type Job } from "@/lib/api";
@@ -151,24 +152,6 @@ function CheckChip({ children }: { children: React.ReactNode }) {
   );
 }
 
-function IconButton({
-  label,
-  icon,
-}: {
-  label: string;
-  icon: "bookmark" | "share";
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      className="rounded-full border border-line p-2.5 text-ink-muted transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
-    >
-      <Icon name={icon} />
-    </button>
-  );
-}
-
 /* --- Result card ----------------------------------------------------------- */
 
 export function JobResultCard({
@@ -261,13 +244,13 @@ export function JobDetailPane({ job }: { job: Job }) {
 
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <Link
-            href={`/signup?apply=${job.id}`}
+            href={`/jobs/${job.id}`}
             className="rounded-full bg-brand-700 px-7 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-800"
           >
             Apply now
           </Link>
-          <IconButton label="Save this job" icon="bookmark" />
-          <IconButton label="Share this job" icon="share" />
+          <SaveButton jobId={job.id} initialSaved={job.is_saved ?? false} />
+          <ShareButton jobId={job.id} />
         </div>
 
         {/*

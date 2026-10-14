@@ -7,6 +7,8 @@ request.user once authentication lands is a change in one place.
 """
 
 import json
+from datetime import date
+from decimal import Decimal, InvalidOperation
 
 from django.db.models import Count, Q
 from django.http import JsonResponse
@@ -20,6 +22,16 @@ from rest_framework.response import Response
 from .matching import score_match
 from .models import (
     PIPELINE,
+    Availability,
+    EducationLevel,
+    EmploymentStatus,
+    EmploymentType,
+    ExperienceLevel,
+    NightShift,
+    Proficiency,
+    ProfileStatus,
+    SalaryPeriod,
+    WorkSetup,
     Activity,
     Application,
     ApplicationStatus,
@@ -31,6 +43,7 @@ from .models import (
     Role,
     SavedJob,
     User,
+    WorkExperience,
     ViewedJob,
 )
 from .serializers import (
@@ -179,39 +192,117 @@ def job_categories(request):
 # --- Job seeker portal -------------------------------------------------------
 
 
+# Plain text/choice fields the profile form can set directly.
 PROFILE_TEXT_FIELDS = [
+    # Personal details
     "headline",
     "location",
     "summary",
+    "preferred_name",
+    "country_of_residence",
+    "profile_status",
+    "linkedin_url",
+    "portfolio_url",
+    # Optional EE information
+    "gender",
+    "nationality",
+    "citizenship",
+    "ethnicity",
+    "disability_detail",
+    # Career details
     "role_category",
+    "secondary_role_category",
+    "employment_status",
+    "availability",
     "experience_level",
     "preferred_work_setup",
+    "timezone_availability",
+    "night_shift",
+    # Education
+    "highest_education_level",
+    "field_of_study",
+    "institution_name",
+    # Remuneration
+    "current_salary_currency",
+    "current_salary_period",
+    "expected_salary_currency",
+    "expected_salary_period",
+    # Privacy
+    "do_not_share_with",
 ]
+
+# Lists the form sends wholesale.
+PROFILE_LIST_FIELDS = ["languages", "benefits", "software_tools"]
+
+
+def _parse_date(value):
+    """Accept an ISO date from the form, or nothing."""
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
 
 
 def _recompute_sections(profile: CandidateProfile, user: User) -> None:
-    """Derive the section-completion rows from what the seeker has filled in, so
-    overall completion rises honestly as they complete their profile. EE
-    information stays optional, so a fully filled profile reaches ~88% and
-    unlocks the branded CV (the 80% gate)."""
+    """Derive section completion from the fields each section actually holds.
+
+    One entry per section in PROFILE_SECTIONS, scored as the share of that
+    section's own fields that are filled, so overall completion rises honestly
+    as the seeker works through the form.
+
+    EE information is optional by design and by law, so it is scored but a
+    seeker who skips it can still pass the 80% branded-CV gate on the strength
+    of the other seven sections.
+    """
 
     def pct(*values) -> int:
         return round(100 * sum(1 for v in values if v) / len(values)) if values else 0
 
-    sp = dict(profile.section_progress or {})
-    sp["personal_details"] = pct(
-        user.first_name, user.last_name, user.phone, profile.location
-    )
-    sp["career_details"] = pct(
-        profile.headline, profile.role_category, profile.experience_level
-    )
-    sp["education"] = pct(profile.role_category, profile.experience_level)
-    sp["experience"] = 100 if profile.summary else 0
-    sp["remuneration"] = 100 if profile.preferred_work_setup else 0
-    sp["skills_tools"] = 100 if profile.skills else 0
-    sp["privacy_sharing"] = 100  # reviewed on save
-    sp.setdefault("ee_information", 0)  # optional
-    profile.section_progress = sp
+    profile.section_progress = {
+        "personal_details": pct(
+            user.first_name,
+            user.last_name,
+            user.email,
+            user.phone,
+            profile.country_of_residence,
+            profile.location,
+            profile.profile_status,
+            profile.languages,
+        ),
+        "ee_information": pct(
+            profile.gender,
+            profile.nationality,
+            profile.citizenship,
+            profile.ethnicity,
+            profile.has_disability is not None,
+        ),
+        "career_details": pct(
+            profile.role_category,
+            profile.employment_status,
+            profile.availability,
+            profile.experience_level,
+            profile.preferred_work_setup,
+            profile.timezone_availability,
+            profile.night_shift,
+        ),
+        "education": pct(
+            profile.highest_education_level,
+            profile.field_of_study,
+            profile.graduation_year,
+            profile.institution_name,
+        ),
+        # One role on file is enough to call the section done.
+        "experience": 100 if profile.experience.exists() else 0,
+        "remuneration": pct(
+            profile.current_salary_amount,
+            profile.expected_salary_amount,
+            profile.benefits,
+        ),
+        "skills_tools": pct(profile.skills, profile.software_tools),
+        "privacy_sharing": 100 if profile.sharing_agreed else 0,
+    }
 
 
 @api_view(["GET"])
@@ -246,17 +337,97 @@ def update_candidate_profile(request):
         user.phone = (data.get("phone") or "").strip()
     user.save()
 
+    if "email" in data and (data.get("email") or "").strip():
+        user.email = data["email"].strip()
+    user.save()
+
     for field in PROFILE_TEXT_FIELDS:
         if field in data:
             setattr(profile, field, (data.get(field) or "").strip())
+
+    for field in PROFILE_LIST_FIELDS:
+        if field in data:
+            value = data.get(field)
+            setattr(profile, field, value if isinstance(value, list) else [])
+
     if "skills" in data:
         skills = data.get("skills")
         if isinstance(skills, str):
+            # Older clients sent a comma-separated string.
             skills = [s.strip() for s in skills.split(",") if s.strip()]
         profile.skills = [s for s in (skills or []) if s]
+
+    if "has_disability" in data:
+        value = data.get("has_disability")
+        profile.has_disability = value if isinstance(value, bool) else None
+
+    if "sharing_agreed" in data:
+        profile.sharing_agreed = bool(data.get("sharing_agreed"))
+
+    if "graduation_year" in data:
+        try:
+            profile.graduation_year = int(data["graduation_year"]) or None
+        except (TypeError, ValueError):
+            profile.graduation_year = None
+
+    for field in ("current_salary_amount", "expected_salary_amount"):
+        if field in data:
+            raw = data.get(field)
+            try:
+                setattr(profile, field, Decimal(str(raw)) if raw not in ("", None) else None)
+            except (InvalidOperation, TypeError, ValueError):
+                setattr(profile, field, None)
+
+    # Experience is a list of roles, replaced wholesale on save: the form owns
+    # the whole section, and entries carry no identity the client tracks.
+    if isinstance(data.get("experience"), list):
+        profile.experience.all().delete()
+        for index, entry in enumerate(data["experience"]):
+            if not isinstance(entry, dict):
+                continue
+            title = (entry.get("job_title") or "").strip()
+            if not title:
+                continue
+            WorkExperience.objects.create(
+                profile=profile,
+                job_title=title,
+                company_name=(entry.get("company_name") or "").strip(),
+                employment_type=(entry.get("employment_type") or "").strip(),
+                start_date=_parse_date(entry.get("start_date")),
+                end_date=None if entry.get("is_current") else _parse_date(entry.get("end_date")),
+                is_current=bool(entry.get("is_current")),
+                reason_for_leaving=(entry.get("reason_for_leaving") or "").strip(),
+                key_responsibilities=[
+                    str(r).strip()
+                    for r in (entry.get("key_responsibilities") or [])
+                    if str(r).strip()
+                ],
+                position=index,
+            )
+
     _recompute_sections(profile, user)
     profile.save()
     return JsonResponse(CandidateProfileSerializer(profile).data)
+
+
+@csrf_exempt
+def toggle_saved_job(request, job_id: int):
+    """Save / unsave a job for the signed-in seeker. Anonymous visitors get a
+    401 so the button can send them to sign in."""
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed."}, status=405)
+    user = request.user
+    if not user.is_authenticated or user.role != Role.JOB_SEEKER:
+        return JsonResponse(
+            {"detail": "Sign in as a job seeker to save jobs."}, status=401
+        )
+    job = get_object_or_404(Job, pk=job_id)
+    existing = SavedJob.objects.filter(job=job, candidate=user)
+    if existing.exists():
+        existing.delete()
+        return JsonResponse({"saved": False})
+    SavedJob.objects.create(job=job, candidate=user)
+    return JsonResponse({"saved": True})
 
 
 @api_view(["POST"])
@@ -637,6 +808,45 @@ def automatic_emails(request):
 
     emails = AutomaticEmail.objects.all().order_by("label")
     return Response({"results": AutomaticEmailSerializer(emails, many=True).data})
+
+
+@api_view(["GET"])
+def profile_options(request):
+    """Every choice list the profile form's dropdowns offer.
+
+    Served from the model's own TextChoices so the form can never drift from
+    what the database will accept.
+    """
+
+    def opts(choices):
+        return [{"value": v, "label": l} for v, l in choices]
+
+    return Response(
+        {
+            "profile_status": opts(ProfileStatus.choices),
+            "employment_status": opts(EmploymentStatus.choices),
+            "availability": opts(Availability.choices),
+            "experience_level": opts(ExperienceLevel.choices),
+            "work_setup": opts(WorkSetup.choices),
+            "employment_type": opts(EmploymentType.choices),
+            "night_shift": opts(NightShift.choices),
+            "education_level": opts(EducationLevel.choices),
+            "proficiency": opts(Proficiency.choices),
+            "salary_period": opts(SalaryPeriod.choices),
+            "importance": [
+                {"value": "low", "label": "Nice to have"},
+                {"value": "medium", "label": "Important"},
+                {"value": "high", "label": "Essential"},
+            ],
+            # Free-text elsewhere, but a list keeps the form consistent.
+            "role_categories": sorted(
+                set(
+                    Job.objects.exclude(role_category="")
+                    .values_list("role_category", flat=True)
+                )
+            ),
+        }
+    )
 
 
 @api_view(["GET"])

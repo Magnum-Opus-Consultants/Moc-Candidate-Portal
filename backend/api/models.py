@@ -69,6 +69,59 @@ class JobStatus(models.TextChoices):
     PRIVATE = "private", "Private"
 
 
+
+class Proficiency(models.TextChoices):
+    BASIC = "basic", "Basic"
+    INTERMEDIATE = "intermediate", "Intermediate"
+    ADVANCED = "advanced", "Advanced"
+    EXPERT = "expert", "Expert"
+
+
+class EmploymentStatus(models.TextChoices):
+    EMPLOYED = "employed", "Employed"
+    SELF_EMPLOYED = "self_employed", "Self-employed"
+    UNEMPLOYED = "unemployed", "Unemployed"
+    STUDENT = "student", "Student"
+    NOTICE = "notice", "Serving notice"
+
+
+class Availability(models.TextChoices):
+    IMMEDIATE = "immediate", "Immediately"
+    ONE_WEEK = "one_week", "1 week"
+    TWO_WEEKS = "two_weeks", "2 weeks"
+    ONE_MONTH = "one_month", "1 month"
+    TWO_MONTHS = "two_months", "2 months"
+    THREE_MONTHS = "three_months", "3 months or more"
+
+
+class NightShift(models.TextChoices):
+    YES = "yes", "Yes"
+    NO = "no", "No"
+    MAYBE = "maybe", "Maybe"
+    DEPENDS = "depends", "Depending on role"
+
+
+class EducationLevel(models.TextChoices):
+    MATRIC = "matric", "Matric / National Senior Certificate"
+    CERTIFICATE = "certificate", "Certificate"
+    DIPLOMA = "diploma", "Diploma"
+    BACHELOR = "bachelor", "Bachelor's degree"
+    HONOURS = "honours", "Honours degree"
+    MASTER = "master", "Master's degree"
+    DOCTORATE = "doctorate", "Doctorate"
+
+
+class SalaryPeriod(models.TextChoices):
+    MONTHLY = "monthly", "Monthly"
+    ANNUAL = "annual", "Annual"
+    HOURLY = "hourly", "Hourly"
+
+
+class ProfileStatus(models.TextChoices):
+    OPEN = "open", "Open to opportunities"
+    CLOSED = "closed", "Not currently open to opportunities"
+
+
 # The eight profile sections shown as progress rows in the approved designs.
 PROFILE_SECTIONS = [
     ("personal_details", "Personal Details"),
@@ -96,6 +149,75 @@ class CandidateProfile(models.Model):
         max_length=20, choices=WorkSetup.choices, blank=True
     )
     cv = models.FileField(upload_to="cvs/", blank=True, null=True)
+
+    # --- Personal details --------------------------------------------------
+    photo = models.ImageField(upload_to="photos/", blank=True, null=True)
+    preferred_name = models.CharField(max_length=80, blank=True)
+    country_of_residence = models.CharField(max_length=80, blank=True)
+    profile_status = models.CharField(
+        max_length=10, choices=ProfileStatus.choices, blank=True
+    )
+    # [{"language": "English", "proficiency": "native"}, ...]
+    languages = models.JSONField(default=list, blank=True)
+    linkedin_url = models.URLField(blank=True)
+    portfolio_url = models.URLField(blank=True)
+
+    # --- Optional EE information -------------------------------------------
+    # Optional by design and by law; blank is a valid answer throughout.
+    gender = models.CharField(max_length=40, blank=True)
+    nationality = models.CharField(max_length=80, blank=True)
+    citizenship = models.CharField(max_length=80, blank=True)
+    ethnicity = models.CharField(max_length=40, blank=True)
+    has_disability = models.BooleanField(null=True, blank=True)
+    disability_detail = models.TextField(blank=True)
+
+    # --- Career details ----------------------------------------------------
+    secondary_role_category = models.CharField(max_length=120, blank=True)
+    employment_status = models.CharField(
+        max_length=20, choices=EmploymentStatus.choices, blank=True
+    )
+    availability = models.CharField(
+        max_length=20, choices=Availability.choices, blank=True
+    )
+    timezone_availability = models.CharField(max_length=40, blank=True)
+    night_shift = models.CharField(
+        max_length=10, choices=NightShift.choices, blank=True
+    )
+
+    # --- Education ---------------------------------------------------------
+    highest_education_level = models.CharField(
+        max_length=20, choices=EducationLevel.choices, blank=True
+    )
+    field_of_study = models.CharField(max_length=120, blank=True)
+    graduation_year = models.PositiveIntegerField(null=True, blank=True)
+    institution_name = models.CharField(max_length=160, blank=True)
+
+    # --- Remuneration & benefits -------------------------------------------
+    current_salary_currency = models.CharField(max_length=8, default="ZAR", blank=True)
+    current_salary_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
+    current_salary_period = models.CharField(
+        max_length=10, choices=SalaryPeriod.choices, blank=True
+    )
+    expected_salary_currency = models.CharField(max_length=8, default="ZAR", blank=True)
+    expected_salary_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
+    expected_salary_period = models.CharField(
+        max_length=10, choices=SalaryPeriod.choices, blank=True
+    )
+    benefits = models.JSONField(default=list, blank=True)
+
+    # --- Skills & tools ----------------------------------------------------
+    # skills:        [{"name": "Figma", "proficiency": "advanced", "importance": "high"}]
+    # software_tools:[{"name": "Jira", "proficiency": "basic"}]
+    software_tools = models.JSONField(default=list, blank=True)
+
+    # --- Privacy & profile sharing -----------------------------------------
+    do_not_share_with = models.TextField(blank=True)
+    sharing_agreed = models.BooleanField(default=False)
+
     # Percentage complete per section, keyed by the slugs in PROFILE_SECTIONS.
     section_progress = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -127,6 +249,56 @@ class CandidateProfile(models.Model):
     @property
     def can_download_branded_cv(self) -> bool:
         return self.completion >= 80
+
+    @property
+    def skill_names(self) -> list[str]:
+        """Skill names, whichever shape the list is in.
+
+        The profile form stores {"name", "proficiency", "importance"} objects,
+        while older rows and the seed hold plain strings. Matching only ever
+        needs the name, so it reads it through here rather than each caller
+        guessing the shape.
+        """
+        names = []
+        for entry in self.skills or []:
+            if isinstance(entry, dict):
+                name = entry.get("name", "")
+            else:
+                name = entry
+            if str(name).strip():
+                names.append(str(name))
+        return names
+
+
+class WorkExperience(models.Model):
+    """One role on a job seeker's history.
+
+    A separate table rather than JSON on the profile: the designs let a
+    candidate add, edit and delete entries individually, and the AI rewriting
+    advice works per role on the key responsibilities.
+    """
+
+    profile = models.ForeignKey(
+        CandidateProfile, on_delete=models.CASCADE, related_name="experience"
+    )
+    job_title = models.CharField(max_length=160)
+    company_name = models.CharField(max_length=160, blank=True)
+    employment_type = models.CharField(
+        max_length=20, choices=EmploymentType.choices, blank=True
+    )
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+    is_current = models.BooleanField(default=False)
+    reason_for_leaving = models.CharField(max_length=200, blank=True)
+    # Ordered bullet points, as the designs show them with a drag handle.
+    key_responsibilities = models.JSONField(default=list, blank=True)
+    position = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["position", "-start_date"]
+
+    def __str__(self) -> str:
+        return f"{self.job_title} at {self.company_name}".strip()
 
 
 class Job(models.Model):

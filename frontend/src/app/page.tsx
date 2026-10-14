@@ -101,14 +101,8 @@ function SiteHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-1">
-          <Link
-            href="/signin"
-            className="rounded-lg px-3 py-2 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-50"
-          >
+          <Button href="/signin" size="sm">
             Sign in
-          </Link>
-          <Button href="/signup" size="sm" className="ml-1">
-            Create profile
           </Button>
         </div>
       </div>

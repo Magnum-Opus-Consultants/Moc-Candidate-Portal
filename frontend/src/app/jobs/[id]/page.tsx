@@ -4,6 +4,7 @@ import { Suspense } from "react";
 
 import { BackendOffline, CardSkeleton } from "@/components/states";
 import { JobChips } from "@/components/job-cards";
+import { SaveForLaterButton, ShareButton } from "@/components/job-actions";
 import { Icon } from "@/components/ui/icon";
 import {
   Button,
@@ -27,7 +28,7 @@ export default function JobDetailPage({ params }: PageProps<"/jobs/[id]">) {
             <Icon name="chevron-right" className="size-3.5 rotate-180" />
             All jobs
           </Link>
-          <Button href="/portal" variant="outline" size="sm">
+          <Button href="/signin" variant="outline" size="sm">
             Sign in
           </Button>
         </div>
@@ -113,19 +114,18 @@ async function JobDetail({ params }: { params: PageProps<"/jobs/[id]">["params"]
         ) : null}
 
         <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-line pt-5">
-          <Button disabled={job.has_applied || job.status === "closed"}>
+          <Button
+            href={
+              job.has_applied || job.status === "closed"
+                ? undefined
+                : `/signup?apply=${job.id}`
+            }
+            disabled={job.has_applied || job.status === "closed"}
+          >
             {job.has_applied ? "Already applied" : "Apply now"}
           </Button>
-          <Button variant="outline">
-            {job.is_saved ? "Saved" : "Save for later"}
-          </Button>
-          <button
-            type="button"
-            className="rounded-lg p-2 text-ink-subtle transition-colors hover:bg-card-muted hover:text-ink"
-          >
-            <span className="sr-only">Share this job</span>
-            <Icon name="share" />
-          </button>
+          <SaveForLaterButton jobId={job.id} initialSaved={job.is_saved ?? false} />
+          <ShareButton jobId={job.id} />
           <span className="ml-auto text-xs text-ink-subtle">
             Last updated {formatDate(job.updated_at)}
           </span>

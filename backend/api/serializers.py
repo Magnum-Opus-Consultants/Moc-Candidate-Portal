@@ -13,6 +13,7 @@ from .models import (
     CandidateProfile,
     Job,
     User,
+    WorkExperience,
 )
 
 
@@ -73,31 +74,96 @@ class ProfileSectionSerializer(serializers.Serializer):
     completed = serializers.BooleanField()
 
 
+class WorkExperienceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkExperience
+        fields = [
+            "id",
+            "job_title",
+            "company_name",
+            "employment_type",
+            "start_date",
+            "end_date",
+            "is_current",
+            "reason_for_leaving",
+            "key_responsibilities",
+        ]
+
+
 class CandidateProfileSerializer(serializers.ModelSerializer):
+    """The whole profile, as the eight-section creation form reads and writes it."""
+
     user = UserSummarySerializer(read_only=True)
     completion = serializers.IntegerField(read_only=True)
     strength = serializers.CharField(read_only=True)
     can_download_branded_cv = serializers.BooleanField(read_only=True)
     sections = serializers.SerializerMethodField()
+    experience = WorkExperienceSerializer(many=True, read_only=True)
+    photo_url = serializers.SerializerMethodField()
 
     class Meta:
         model = CandidateProfile
         fields = [
             "id",
             "user",
+            # Personal details
             "headline",
+            "preferred_name",
+            "country_of_residence",
             "location",
+            "profile_status",
+            "languages",
+            "linkedin_url",
+            "portfolio_url",
+            "photo_url",
             "summary",
-            "skills",
+            # Optional EE information
+            "gender",
+            "nationality",
+            "citizenship",
+            "ethnicity",
+            "has_disability",
+            "disability_detail",
+            # Career details
             "role_category",
+            "secondary_role_category",
+            "employment_status",
+            "availability",
             "experience_level",
             "preferred_work_setup",
+            "timezone_availability",
+            "night_shift",
+            # Education
+            "highest_education_level",
+            "field_of_study",
+            "graduation_year",
+            "institution_name",
+            # Experience
+            "experience",
+            # Remuneration & benefits
+            "current_salary_currency",
+            "current_salary_amount",
+            "current_salary_period",
+            "expected_salary_currency",
+            "expected_salary_amount",
+            "expected_salary_period",
+            "benefits",
+            # Skills & tools
+            "skills",
+            "software_tools",
+            # Privacy & profile sharing
+            "do_not_share_with",
+            "sharing_agreed",
+            # Derived
             "completion",
             "strength",
             "can_download_branded_cv",
             "sections",
             "updated_at",
         ]
+
+    def get_photo_url(self, obj) -> str:
+        return obj.photo.url if obj.photo else ""
 
     def get_sections(self, obj) -> list[dict]:
         """The eight progress rows, in the order the designs show them."""

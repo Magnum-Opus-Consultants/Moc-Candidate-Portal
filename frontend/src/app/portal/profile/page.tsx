@@ -17,7 +17,7 @@ import {
   SectionHeading,
   StatusBadge,
 } from "@/components/ui/primitives";
-import { api, type CandidateProfile } from "@/lib/api";
+import { api, type CandidateProfile, skillName } from "@/lib/api";
 
 const EXPERIENCE_LEVELS: [string, string][] = [
   ["entry", "Entry-level"],
@@ -265,7 +265,7 @@ export default function ProfilePage() {
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {profile.skills.map((skill) => (
-                    <Chip key={skill}>{skill}</Chip>
+                    <Chip key={skillName(skill)}>{skillName(skill)}</Chip>
                   ))}
                 </div>
               </div>

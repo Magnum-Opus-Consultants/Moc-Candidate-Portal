@@ -190,6 +190,10 @@ CORS_ALLOWED_ORIGINS = env_list(
     "http://localhost:3000,http://127.0.0.1:3000",
 )
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
+# Allow the browser to send the session cookie on cross-origin API calls (the
+# local dev setup, where the front end and API are on different ports). Harmless
+# in production, which is same-origin.
+CORS_ALLOW_CREDENTIALS = True
 AUTH_USER_MODEL = "api.User"
 
 DEFAULT_FROM_EMAIL = os.getenv(

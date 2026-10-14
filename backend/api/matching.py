@@ -53,7 +53,7 @@ def score_match(profile: CandidateProfile | None, job: Job) -> MatchResult:
 
     # Skills — proportional to how much of the job's required list is covered.
     required = _normalise(job.required_skills)
-    held = _normalise(profile.skills)
+    held = _normalise(profile.skill_names)
     if required:
         overlap = required & held
         if overlap:

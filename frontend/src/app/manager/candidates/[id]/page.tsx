@@ -16,7 +16,7 @@ import {
   SectionHeading,
   StatusBadge,
 } from "@/components/ui/primitives";
-import { api, formatDate, relativeDays } from "@/lib/api";
+import { api, formatDate, relativeDays, skillName } from "@/lib/api";
 
 export default function CandidateProfilePage({
   params,
@@ -143,7 +143,7 @@ async function CandidateDetail({
             <h3 className="text-sm font-medium text-ink">Skills & tools</h3>
             <div className="mt-3 flex flex-wrap gap-1.5">
               {profile.skills.map((skill) => (
-                <Chip key={skill}>{skill}</Chip>
+                <Chip key={skillName(skill)}>{skillName(skill)}</Chip>
               ))}
             </div>
           </Card>
