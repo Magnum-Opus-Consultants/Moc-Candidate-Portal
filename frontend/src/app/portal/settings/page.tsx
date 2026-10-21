@@ -331,7 +331,7 @@ function SaveBar({ state, label }: { state: SaverState; label: string }) {
       <button
         type="submit"
         disabled={state.busy}
-        className="rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:bg-brand-300"
+        className="rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-brand-ink transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:bg-brand-300"
       >
         {state.busy ? "Saving…" : label}
       </button>

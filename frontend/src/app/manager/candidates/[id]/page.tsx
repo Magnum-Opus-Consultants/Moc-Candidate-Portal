@@ -1,14 +1,17 @@
 import Link from "next/link";
+import { CandidateComments } from "@/components/candidate-comments";
+import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { ProfileSectionRow } from "@/components/job-cards";
+import { CandidateActions } from "@/components/candidate-actions";
+import { PhotoViewer } from "@/components/photo-viewer";
 import { BackendOffline, PageSkeleton } from "@/components/states";
 import { Icon } from "@/components/ui/icon";
 import { ProgressCircle } from "@/components/ui/progress-circle";
 import {
   APPLICATION_STATUS_TONE,
-  Avatar,
   Button,
   Card,
   Chip,
@@ -33,15 +36,28 @@ async function CandidateDetail({
 }: {
   params: PageProps<"/manager/candidates/[id]">["params"];
 }) {
+  // Relative dates ('3 days ago') are true only at the moment they are
+  // rendered, so this subtree is request-time rather than prerendered.
+  await connection();
   const { id } = await params;
-  const result = await api.managerCandidate(id);
+  // The shortlist belongs to a posting, so the menu needs the open ones.
+  const [result, jobsResult] = await Promise.all([
+    api.managerCandidate(id),
+    api.managerJobs("?status=active&limit=50"),
+  ]);
+  const openJobs = jobsResult.ok
+    ? jobsResult.data.results.map((job) => ({ id: job.id, title: job.title }))
+    : [];
 
   if (!result.ok) {
     if (result.error.startsWith("404")) notFound();
     return <BackendOffline error={result.error} />;
   }
 
-  const { profile, applications } = result.data;
+  const { profile, applications, comments } = result.data;
+  // Who is signed in, so their own notes offer a Remove.
+  const me = await api.me();
+  const viewerId = me.ok && me.data ? me.data.id : null;
   const strength =
     PROFILE_STRENGTH[profile.strength] ?? PROFILE_STRENGTH.getting_started;
 
@@ -57,7 +73,11 @@ async function CandidateDetail({
 
       {/* Profile header from the designs: bookmark and shortlist on the right. */}
       <Card className="flex flex-wrap items-center gap-4 p-5">
-        <Avatar initials={profile.user.initials} size="lg" />
+        <PhotoViewer
+          url={profile.photo_url}
+          initials={profile.user.initials}
+          name={profile.user.name}
+        />
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-ink-strong">{profile.user.name}</p>
           <p className="text-sm text-ink-muted">
@@ -68,13 +88,12 @@ async function CandidateDetail({
             Profile updated {relativeDays(profile.updated_at).toLowerCase()}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
-            <Icon name="bookmark" className="size-3.5" />
-            Bookmark
-          </Button>
-          <Button size="sm">Shortlist</Button>
-        </div>
+        <CandidateActions
+          candidateId={profile.user.id}
+          initialBookmarked={result.data.is_bookmarked}
+          shortlistedJobIds={result.data.shortlisted_job_ids}
+          jobs={openJobs}
+        />
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -112,6 +131,12 @@ async function CandidateDetail({
               </Card>
             )}
           </section>
+
+          <CandidateComments
+            candidateId={profile.user.id}
+            viewerId={viewerId}
+            initial={comments}
+          />
 
           <section>
             <SectionHeading title="Profile sections" />

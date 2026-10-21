@@ -12,6 +12,8 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+from django.core.exceptions import ImproperlyConfigured  # noqa: E402
+
 load_dotenv(BASE_DIR / ".env")
 
 
@@ -190,6 +192,76 @@ CORS_ALLOWED_ORIGINS = env_list(
     "http://localhost:3000,http://127.0.0.1:3000",
 )
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
+
+# --- Production hardening ------------------------------------------------
+#
+# Everything here is a no-op in development and switches on when
+# DJANGO_DEBUG=False. `manage.py check --deploy` should come back clean on
+# the server; if it does not, the deploy script stops.
+if not DEBUG:
+    # The cookies carry the session and the CSRF token. Over plain HTTP
+    # both are readable by anything on the path.
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+
+    # Behind nginx, Django only knows the original scheme from this header.
+    # Without it SECURE_SSL_REDIRECT loops: nginx forwards over HTTP, Django
+    # redirects to HTTPS, nginx forwards over HTTP again.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = env_bool("DJANGO_SSL_REDIRECT", True)
+
+    # Start HSTS short. A long max-age is remembered by browsers and cannot
+    # be withdrawn, so raise it only once HTTPS is known to be stable.
+    SECURE_HSTS_SECONDS = int(os.getenv("DJANGO_HSTS_SECONDS", "3600"))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("DJANGO_HSTS_SUBDOMAINS", False)
+    SECURE_HSTS_PRELOAD = False
+
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = "DENY"
+
+    # A development key in production makes every signed value forgeable —
+    # sessions and password-reset tokens included. Refuse to boot instead.
+    if SECRET_KEY.startswith("django-insecure-") or len(SECRET_KEY) < 50:
+        raise ImproperlyConfigured(
+            "DJANGO_SECRET_KEY must be set to a long random value when "
+            "DJANGO_DEBUG=False. Generate one with:\n"
+            "  python -c \"from django.core.management.utils import "
+            'get_random_secret_key; print(get_random_secret_key())"'
+        )
+
+    if not ALLOWED_HOSTS or ALLOWED_HOSTS == ["localhost", "127.0.0.1"]:
+        raise ImproperlyConfigured(
+            "DJANGO_ALLOWED_HOSTS must name the real host when "
+            "DJANGO_DEBUG=False, e.g. careers.moc-pty.com"
+        )
+
+
+# Uploaded files — candidate CVs and profile photos.
+# Without these Django writes relative to the working directory, which put
+# uploads inside the source tree and gave them URLs nothing served.
+MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_URL = "/media/"
+
+# The absolute origin of this API, so a URL handed to the front end (on a
+# different port in development) resolves. Same-origin in production, where
+# this is simply the site itself.
+API_BASE_URL = os.getenv("DJANGO_API_BASE_URL", "http://localhost:8002").rstrip("/")
+
+# Where to send the browser back to after an external sign-in round trip.
+FRONTEND_URL = os.getenv(
+    "DJANGO_FRONTEND_URL", CORS_ALLOWED_ORIGINS[0] if CORS_ALLOWED_ORIGINS else ""
+).rstrip("/")
+
+# Sign In with LinkedIn using OpenID Connect.
+# Both values come from the LinkedIn developer app and belong in .env, never
+# in the repo. Without them the provider is simply switched off: the sign-up
+# page hides the button rather than offering something that cannot work.
+LINKEDIN_CLIENT_ID = os.getenv("LINKEDIN_CLIENT_ID", "")
+LINKEDIN_CLIENT_SECRET = os.getenv("LINKEDIN_CLIENT_SECRET", "")
+LINKEDIN_REDIRECT_URI = os.getenv(
+    "LINKEDIN_REDIRECT_URI", "http://localhost:8002/api/auth/linkedin/callback/"
+)
 # Allow the browser to send the session cookie on cross-origin API calls (the
 # local dev setup, where the front end and API are on different ports). Harmless
 # in production, which is same-origin.

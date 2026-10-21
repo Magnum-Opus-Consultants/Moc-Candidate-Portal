@@ -3,7 +3,6 @@ import { Suspense } from "react";
 
 import { ProfileForm } from "@/components/profile-form/profile-form";
 import { BackendOffline, PageSkeleton } from "@/components/states";
-import { Icon } from "@/components/ui/icon";
 import { api } from "@/lib/api";
 
 export const metadata = {
@@ -21,16 +20,8 @@ export const metadata = {
 export default function CompleteProfilePage() {
   return (
     <div className="min-h-dvh bg-canvas">
-      <header className="sticky top-0 z-20 border-b border-line bg-card">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4">
-          <Link
-            href="/portal/profile"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-card-muted"
-          >
-            <Icon name="chevron-right" className="size-3.5 rotate-180" />
-            Back
-          </Link>
-
+      <header className="border-b border-line bg-card">
+        <div className="flex h-14 items-center justify-end gap-4 px-6">
           <div className="flex items-center gap-1">
             <Link
               href="/portal/profile"
@@ -48,7 +39,7 @@ export default function CompleteProfilePage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-8">
+      <main className="px-6 py-8">
         <div className="mb-7">
           <h1 className="text-2xl font-semibold tracking-tight text-ink-strong">
             Complete your profile

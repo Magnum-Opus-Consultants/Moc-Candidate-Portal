@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Icon } from "@/components/ui/icon";
+import { BookmarkFilled, Icon } from "@/components/ui/icon";
 import { cn } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 
@@ -14,9 +14,12 @@ import { api } from "@/lib/api";
 export function SaveButton({
   jobId,
   initialSaved = false,
+  compact = false,
 }: {
   jobId: number;
   initialSaved?: boolean;
+  /** Borderless, for the corner of a card that has its own border. */
+  compact?: boolean;
 }) {
   const router = useRouter();
   const [saved, setSaved] = useState(initialSaved);
@@ -41,13 +44,18 @@ export function SaveButton({
       aria-pressed={saved}
       aria-label={saved ? "Saved — tap to remove" : "Save this job"}
       className={cn(
-        "rounded-full border p-2.5 transition-colors",
+        "rounded-full transition-colors disabled:opacity-60",
+        compact ? "p-1.5" : "border p-2.5",
         saved
-          ? "border-brand-700 bg-brand-50 text-brand-700"
-          : "border-line text-ink-muted hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700",
+          ? compact
+            ? "bg-brand-50 text-brand-700"
+            : "border-brand-700 bg-brand-50 text-brand-700"
+          : compact
+            ? "text-ink-subtle hover:bg-card-muted hover:text-brand-700"
+            : "border-line text-ink-muted hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700",
       )}
     >
-      <Icon name="bookmark" />
+      {saved ? <BookmarkFilled /> : <Icon name="bookmark" />}
     </button>
   );
 }
@@ -206,7 +214,7 @@ export function ApplyButton({
         type="button"
         onClick={apply}
         disabled={busy}
-        className="rounded-lg bg-brand-700 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-800 disabled:bg-brand-100 disabled:text-brand-300"
+        className="rounded-lg bg-brand-700 px-5 py-2 text-sm font-medium text-brand-ink transition-colors hover:bg-brand-800 disabled:bg-brand-100 disabled:text-brand-300"
       >
         {busy ? "Applying…" : children}
       </button>

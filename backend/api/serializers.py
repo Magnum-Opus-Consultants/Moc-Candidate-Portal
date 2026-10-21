@@ -9,10 +9,13 @@ from .models import (
     Application,
     ApplicationEvent,
     ApplicationStatus,
+    CandidateComment,
     AutomaticEmail,
+    EmailLog,
     CandidateProfile,
     Job,
     User,
+    Education,
     WorkExperience,
 )
 
@@ -23,6 +26,16 @@ class UserSummarySerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["id", "name", "initials", "email", "phone", "role"]
+
+
+class CandidateCommentSerializer(serializers.ModelSerializer):
+    """A team note on a candidate, with who wrote it."""
+
+    author = UserSummarySerializer(read_only=True)
+
+    class Meta:
+        model = CandidateComment
+        fields = ["id", "author", "body", "created_at"]
 
 
 class JobSerializer(serializers.ModelSerializer):
@@ -65,6 +78,23 @@ class JobSerializer(serializers.ModelSerializer):
             "required_skills",
             "posted_at",
             "closes_at",
+            "ideal_start_date",
+            "hr_email",
+            "hr_phone",
+            "candidate_location",
+            "night_shift",
+            "flexible_hours",
+            "citizenship_requirement",
+            "language_requirements",
+            "minimum_years_experience",
+            "industry_experience",
+            "education_requirement",
+            "field_of_study",
+            "salary_currency",
+            "salary_min",
+            "salary_max",
+            "salary_period",
+            "benefits",
             "updated_at",
             "applicant_count",
             "new_applicant_count",
@@ -89,6 +119,23 @@ class ProfileSectionSerializer(serializers.Serializer):
     label = serializers.CharField()
     progress = serializers.IntegerField()
     completed = serializers.BooleanField()
+
+
+class EducationSerializer(serializers.ModelSerializer):
+    level_label = serializers.CharField(source="get_level_display", read_only=True)
+
+    class Meta:
+        model = Education
+        fields = [
+            "id",
+            "level",
+            "level_label",
+            "field_of_study",
+            "institution_name",
+            "graduation_year",
+            "is_current",
+            "position",
+        ]
 
 
 class WorkExperienceSerializer(serializers.ModelSerializer):
@@ -116,6 +163,7 @@ class CandidateProfileSerializer(serializers.ModelSerializer):
     can_download_branded_cv = serializers.BooleanField(read_only=True)
     sections = serializers.SerializerMethodField()
     experience = WorkExperienceSerializer(many=True, read_only=True)
+    education = EducationSerializer(many=True, read_only=True)
     photo_url = serializers.SerializerMethodField()
 
     class Meta:
@@ -157,6 +205,7 @@ class CandidateProfileSerializer(serializers.ModelSerializer):
             "institution_name",
             # Experience
             "experience",
+            "education",
             # Remuneration & benefits
             "current_salary_currency",
             "current_salary_amount",
@@ -180,7 +229,13 @@ class CandidateProfileSerializer(serializers.ModelSerializer):
         ]
 
     def get_photo_url(self, obj) -> str:
-        return obj.photo.url if obj.photo else ""
+        """Absolute, because the front end runs on its own origin."""
+        if not obj.photo:
+            return ""
+        from django.conf import settings
+
+        url = obj.photo.url
+        return url if url.startswith("http") else f"{settings.API_BASE_URL}{url}"
 
     def get_sections(self, obj) -> list[dict]:
         """The eight progress rows, in the order the designs show them."""
@@ -313,7 +368,63 @@ class ActivitySerializer(serializers.ModelSerializer):
         fields = ["id", "actor", "verb", "target", "created_at"]
 
 
+class EmailLogSerializer(serializers.ModelSerializer):
+    """One sent email, as the log lists it."""
+
+    trigger_label = serializers.CharField(
+        source="get_trigger_display", read_only=True
+    )
+    status_label = serializers.CharField(source="get_status_display", read_only=True)
+    template_label = serializers.CharField(
+        source="template.label", read_only=True, default=""
+    )
+
+    class Meta:
+        model = EmailLog
+        fields = [
+            "id",
+            "trigger",
+            "trigger_label",
+            "template_label",
+            "recipient",
+            "subject",
+            "body",
+            "status",
+            "status_label",
+            "error",
+            "about",
+            "created_at",
+        ]
+
+
 class AutomaticEmailSerializer(serializers.ModelSerializer):
+    trigger_label = serializers.CharField(
+        source="get_trigger_display", read_only=True
+    )
+    # False for the three the Client supplied: those can be switched off but
+    # not deleted, and the UI needs to know which is which.
+    is_custom = serializers.SerializerMethodField()
+    send_count = serializers.SerializerMethodField()
+
     class Meta:
         model = AutomaticEmail
-        fields = ["id", "event", "label", "subject", "body", "updated_at"]
+        fields = [
+            "id",
+            "event",
+            "label",
+            "subject",
+            "body",
+            "trigger",
+            "trigger_label",
+            "conditions",
+            "is_active",
+            "is_custom",
+            "send_count",
+            "updated_at",
+        ]
+
+    def get_is_custom(self, email) -> bool:
+        return email.created_by_id is not None
+
+    def get_send_count(self, email) -> int:
+        return email.sends.count()

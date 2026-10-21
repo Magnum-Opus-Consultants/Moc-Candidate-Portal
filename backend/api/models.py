@@ -61,6 +61,20 @@ class EmploymentType(models.TextChoices):
     PROJECT = "project", "Project-based"
 
 
+class CitizenshipRequirement(models.TextChoices):
+    NONE = "none", "No specific requirement"
+    CITIZEN = "citizen", "Must be a South African citizen"
+    PERMANENT_RESIDENT = "permanent_resident", "Must be a permanent resident in South Africa"
+    WORK_PERMIT = "work_permit", "Must have a valid work permit"
+    OTHER = "other", "Other"
+
+
+class IndustryExperience(models.TextChoices):
+    NONE = "none", "Not required"
+    PREFERRED = "preferred", "Preferred"
+    REQUIRED = "required", "Required"
+
+
 class JobStatus(models.TextChoices):
     ACTIVE = "active", "Active"
     PAUSED = "paused", "Paused"
@@ -301,6 +315,83 @@ class WorkExperience(models.Model):
         return f"{self.job_title} at {self.company_name}".strip()
 
 
+class Education(models.Model):
+    """One qualification on a job seeker's record.
+
+    A table of its own for the same reason as WorkExperience: people hold
+    more than one qualification, and the four flat fields that used to sit on
+    the profile could only ever record the last one typed.
+
+    The flat fields are kept on CandidateProfile as the *highest* qualification
+    — the matching engine and the branded CV read them — and are derived from
+    these rows rather than typed twice.
+    """
+
+    profile = models.ForeignKey(
+        CandidateProfile, on_delete=models.CASCADE, related_name="education"
+    )
+    level = models.CharField(max_length=30, choices=EducationLevel.choices)
+    field_of_study = models.CharField(max_length=120, blank=True)
+    institution_name = models.CharField(max_length=160, blank=True)
+    graduation_year = models.PositiveIntegerField(null=True, blank=True)
+    is_current = models.BooleanField(default=False)
+    position = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["position", "-graduation_year"]
+
+    def __str__(self) -> str:
+        return f"{self.get_level_display()} - {self.field_of_study}".strip()
+
+
+class JobQuerySet(models.QuerySet):
+    def with_counts(self):
+        """Annotate the applicant totals the cards and rows display.
+
+        Two aggregates over one join rather than two queries per row. Fine
+        for a handful of postings; for a page out of thousands prefer
+        `attach_counts`, which counts only the rows on screen.
+        """
+        return self.annotate(
+            _applicant_count=models.Count("applications", distinct=True),
+            _new_applicant_count=models.Count(
+                "applications",
+                filter=models.Q(applications__status=ApplicationStatus.APPLIED),
+                distinct=True,
+            ),
+        )
+
+
+def attach_counts(jobs):
+    """Put the applicant totals on an already-fetched page of postings.
+
+    Annotating before slicing makes the database join and group every row in
+    the table to return twenty-four, which on ten thousand postings is most
+    of the request. Slicing first and counting only those ids is one small
+    extra query and keeps the page query on its index.
+    """
+    jobs = list(jobs)
+    if not jobs:
+        return jobs
+
+    totals = {
+        row["job_id"]: (row["total"], row["fresh"])
+        for row in Application.objects.filter(job__in=jobs)
+        .values("job_id")
+        .annotate(
+            total=models.Count("id"),
+            fresh=models.Count(
+                "id", filter=models.Q(status=ApplicationStatus.APPLIED)
+            ),
+        )
+    }
+    for job in jobs:
+        total, fresh = totals.get(job.id, (0, 0))
+        job._applicant_count = total
+        job._new_applicant_count = fresh
+    return jobs
+
+
 class Job(models.Model):
     title = models.CharField(max_length=160)
     role_category = models.CharField(max_length=120)
@@ -342,6 +433,59 @@ class Job(models.Model):
     working_hours_start = models.PositiveSmallIntegerField(null=True, blank=True)
     working_hours_end = models.PositiveSmallIntegerField(null=True, blank=True)
 
+    # --- From the job posting form in the designs -----------------------
+    # Job overview
+    ideal_start_date = models.DateField(null=True, blank=True)
+
+    # Employer details — who a candidate's questions go to.
+    hr_email = models.EmailField(blank=True)
+    hr_phone = models.CharField(max_length=40, blank=True)
+
+    # Work setup
+    candidate_location = models.CharField(
+        max_length=120,
+        blank=True,
+        help_text="Where the candidate must be based, if it is constrained.",
+    )
+    night_shift = models.CharField(
+        max_length=20, choices=NightShift.choices, blank=True
+    )
+    flexible_hours = models.BooleanField(default=False)
+
+    # Candidate requirements
+    citizenship_requirement = models.CharField(
+        max_length=30, choices=CitizenshipRequirement.choices, blank=True
+    )
+    # [{"language": "English", "proficiency": "fluent"}]
+    language_requirements = models.JSONField(default=list, blank=True)
+
+    # Experience requirements
+    minimum_years_experience = models.PositiveSmallIntegerField(
+        null=True, blank=True
+    )
+    industry_experience = models.CharField(
+        max_length=20, choices=IndustryExperience.choices, blank=True
+    )
+
+    # Education requirements
+    education_requirement = models.CharField(
+        max_length=30, choices=EducationLevel.choices, blank=True
+    )
+    field_of_study = models.CharField(max_length=120, blank=True)
+
+    # Remuneration — a range, so salary_label can stay the display string.
+    salary_currency = models.CharField(max_length=8, default="ZAR", blank=True)
+    salary_min = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
+    salary_max = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
+    salary_period = models.CharField(
+        max_length=20, choices=SalaryPeriod.choices, blank=True
+    )
+    benefits = models.JSONField(default=list, blank=True)
+
     posted_at = models.DateTimeField(null=True, blank=True)
     closes_at = models.DateTimeField(null=True, blank=True)
     created_by = models.ForeignKey(
@@ -350,8 +494,21 @@ class Job(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = JobQuerySet.as_manager()
+
     class Meta:
         ordering = ["-posted_at", "-created_at"]
+        indexes = [
+            # The public list and the manager list both filter on status and
+            # order by posted date; without these SQLite scans all 10 000.
+            models.Index(fields=["status"], name="job_status_idx"),
+            models.Index(
+                fields=["-posted_at", "-created_at"], name="job_posted_idx"
+            ),
+            # The manager list's default sort. Without it SQLite scans all
+            # 10 000 rows and sorts them in a temp B-tree to return 24.
+            models.Index(fields=["-created_at"], name="job_created_idx"),
+        ]
 
     def __str__(self) -> str:
         return self.title
@@ -410,10 +567,21 @@ class Job(models.Model):
 
     @property
     def applicant_count(self) -> int:
-        return self.applications.count()
+        """How many have applied.
+
+        Prefers the annotation `JobQuerySet.with_counts()` adds, so listing
+        24 postings is one query rather than one per row. Falls back to a
+        count for a single job fetched without it.
+        """
+        annotated = getattr(self, "_applicant_count", None)
+        return self.applications.count() if annotated is None else annotated
 
     @property
     def new_applicant_count(self) -> int:
+        """Applicants nobody has looked at yet. Annotated like the total."""
+        annotated = getattr(self, "_new_applicant_count", None)
+        if annotated is not None:
+            return annotated
         return self.applications.filter(status=ApplicationStatus.APPLIED).count()
 
 
@@ -567,6 +735,34 @@ class CandidateBookmark(models.Model):
         ]
 
 
+class CandidateComment(models.Model):
+    """A hiring manager's note on a candidate, visible to the whole team.
+
+    Deliberately on the candidate rather than on one shortlist entry: what a
+    manager learns in an interview ("spoke well", "needs notice period") is
+    true of the person, not of the posting they happened to apply for, and
+    the next manager to open that profile should see it.
+
+    Only the author can remove their own comment — the record of who said
+    what is the point, so one manager cannot quietly edit another's view.
+    """
+
+    candidate = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="comments_about"
+    )
+    author = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="candidate_comments"
+    )
+    body = models.TextField()
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.author} on {self.candidate}"
+
+
 class ShortlistEntry(models.Model):
     job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name="shortlist")
     candidate = models.ForeignKey(
@@ -588,7 +784,7 @@ class ShortlistEntry(models.Model):
 
 
 class Activity(models.Model):
-    """The hiring manager recent-activity feed — the designs show the last 50."""
+    """The hiring manager recent-activity feed — the designs show the last 20."""
 
     actor = models.ForeignKey(User, on_delete=models.CASCADE, related_name="activities")
     verb = models.CharField(max_length=120)
@@ -600,14 +796,104 @@ class Activity(models.Model):
         verbose_name_plural = "activities"
 
 
+class EmailTrigger(models.TextChoices):
+    """The events the portal can send an automatic email on.
+
+    A fixed list on purpose: a hiring manager composes the wording and picks
+    which of these fires it, but cannot invent a trigger the code does not
+    raise. Adding a trigger means adding the call site that raises it.
+    """
+
+    APPLICATION_RECEIVED = "application_received", "An application is received"
+    APPLICATION_STATUS_CHANGED = (
+        "application_status_changed",
+        "An application's status changes",
+    )
+    NEW_JOB_PUBLISHED = "new_job_published", "A new job is published"
+    ACCOUNT_CREATED = "account_created", "A job seeker creates an account"
+
+
 class AutomaticEmail(models.Model):
-    """Wording hiring managers edit; sent from careers@moc-pty.com on its event."""
+    """Wording hiring managers edit; sent from careers@moc-pty.com on its event.
+
+    `event` is the stable key the seed and the code refer to. `trigger` is
+    which event actually fires it — the same for the three supplied emails,
+    but a manager can add further emails on any supported trigger, so a
+    trigger can have several emails behind it.
+    """
 
     event = models.CharField(max_length=80, unique=True)
     label = models.CharField(max_length=160)
     subject = models.CharField(max_length=200)
     body = models.TextField()
+    trigger = models.CharField(
+        max_length=40,
+        choices=EmailTrigger.choices,
+        default=EmailTrigger.APPLICATION_RECEIVED,
+    )
+    # Narrows a trigger, e.g. {"status": "shortlisted"} so a status-change
+    # email only goes out for that one stage. Empty means every time.
+    conditions = models.JSONField(default=dict, blank=True)
+    is_active = models.BooleanField(default=True)
+    # Null for the three the Client supplied; set for ones added in the portal.
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="emails_created",
+    )
+    created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["label"]
 
     def __str__(self) -> str:
         return self.label
+
+    def matches(self, context: dict) -> bool:
+        """Whether this email's conditions hold for one event's context."""
+        return all(
+            str(context.get(key, "")) == str(value)
+            for key, value in (self.conditions or {}).items()
+        )
+
+
+class EmailLog(models.Model):
+    """Every automatic email the portal has sent, or tried to.
+
+    Kept because "did the candidate get it?" is the first question asked when
+    something goes wrong, and the sent copy is the only record of the wording
+    as it stood at the time — editing a template must not rewrite history.
+    """
+
+    class Status(models.TextChoices):
+        SENT = "sent", "Sent"
+        FAILED = "failed", "Failed"
+
+    template = models.ForeignKey(
+        AutomaticEmail,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sends",
+    )
+    trigger = models.CharField(max_length=40, choices=EmailTrigger.choices)
+    recipient = models.EmailField()
+    subject = models.CharField(max_length=200)
+    body = models.TextField()
+    status = models.CharField(
+        max_length=10, choices=Status.choices, default=Status.SENT
+    )
+    error = models.TextField(blank=True)
+    # What it was about, for the log's "Re:" column. Plain text rather than
+    # foreign keys: the log must survive the job or candidate being deleted.
+    about = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.subject} to {self.recipient}"

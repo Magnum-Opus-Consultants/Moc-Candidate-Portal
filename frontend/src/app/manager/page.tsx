@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { JobGridCard } from "@/components/job-cards";
@@ -24,6 +25,9 @@ export default function ManagerDashboardPage() {
 }
 
 async function Dashboard() {
+  // Relative dates ('3 days ago') are true only at the moment they are
+  // rendered, so this subtree is request-time rather than prerendered.
+  await connection();
   const result = await api.managerDashboard();
   if (!result.ok) return <BackendOffline error={result.error} />;
 
@@ -91,7 +95,7 @@ async function Dashboard() {
       <section>
         <SectionHeading
           title="Recent activity"
-          subtext="The last 50 actions across the portal"
+          subtext="The last 20 actions across the portal"
         />
         {activity.length === 0 ? (
           <EmptyState title="Nothing has happened yet" />

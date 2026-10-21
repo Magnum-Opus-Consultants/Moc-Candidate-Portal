@@ -20,6 +20,7 @@ import {
   Select,
   type Option,
 } from "@/components/profile-form/fields";
+import { SuggestField } from "@/components/profile-form/suggest-field";
 import { Icon } from "@/components/ui/icon";
 
 export type ExperienceEntry = {
@@ -196,13 +197,14 @@ function Fields({
   return (
     <div className="space-y-5">
       <Pair>
-        <Field
+        <SuggestField
           label="Job title"
           value={entry.job_title}
           onChange={(job_title) => onChange({ job_title })}
-          placeholder="Job title"
+          placeholder="Start typing — e.g. Data Analyst"
         />
-        <Field
+        <SuggestField
+          kind="company"
           label="Company name"
           value={entry.company_name}
           onChange={(company_name) => onChange({ company_name })}
@@ -234,7 +236,7 @@ function Fields({
           />
           <div className="pb-2.5">
             <Checkbox
-              checked={entry.is_current}
+              checked={Boolean(entry.is_current)}
               onChange={(is_current) =>
                 onChange({ is_current, end_date: is_current ? "" : entry.end_date })
               }

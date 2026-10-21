@@ -14,6 +14,8 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { CompletionPanel } from "@/components/profile-form/completion-panel";
+import { CvUpload } from "@/components/profile-form/cv-upload";
+import { PhotoUpload } from "@/components/profile-form/photo-upload";
 import {
   AddButton,
   Checkbox,
@@ -27,35 +29,17 @@ import {
   Token,
   type Option,
 } from "@/components/profile-form/fields";
+import { EducationEditor } from "@/components/profile-form/education-editor";
 import { ExperienceEditor } from "@/components/profile-form/experience-editor";
-import { Icon } from "@/components/ui/icon";
-import { api, type CandidateProfile, type ProfileOptions } from "@/lib/api";
+import { cn } from "@/components/ui/primitives";
+import {
+  api,
+  type CandidateProfile,
+  type ProfileOptions,
+  type ProfileSection,
+} from "@/lib/api";
 
 type Draft = Record<string, unknown>;
-
-const LANGUAGE_PROFICIENCY: Option[] = [
-  { value: "native", label: "Native" },
-  { value: "fluent", label: "Fluent" },
-  { value: "conversational", label: "Conversational" },
-  { value: "basic", label: "Basic" },
-];
-
-const CURRENCIES: Option[] = [
-  { value: "ZAR", label: "ZAR" },
-  { value: "USD", label: "USD" },
-  { value: "EUR", label: "EUR" },
-  { value: "GBP", label: "GBP" },
-];
-
-const BENEFITS: Option[] = [
-  { value: "medical_aid", label: "Medical aid" },
-  { value: "provident_fund", label: "Provident fund" },
-  { value: "annual_bonus", label: "Annual bonus" },
-  { value: "flexible_hours", label: "Flexible hours" },
-  { value: "remote_allowance", label: "Remote allowance" },
-  { value: "study_support", label: "Study support" },
-  { value: "parental_leave", label: "Parental leave" },
-];
 
 function labelFor(options: Option[], value: string): string {
   return options.find((o) => o.value === value)?.label ?? value;
@@ -64,9 +48,12 @@ function labelFor(options: Option[], value: string): string {
 export function ProfileForm({
   initialProfile,
   options,
+  brandedCv = false,
 }: {
   initialProfile: CandidateProfile;
   options: ProfileOptions;
+  /** Offer the 80% branded-CV download in the side panel ("My Profile"). */
+  brandedCv?: boolean;
 }) {
   const [profile, setProfile] = useState(initialProfile);
   const [draft, setDraft] = useState<Draft>({});
@@ -96,6 +83,43 @@ export function ProfileForm({
     setSaved(false);
   }
 
+  /**
+   * Apply what a parsed CV offers.
+   *
+   * Into the draft, not the profile: the candidate sees the values in the
+   * form as unsaved edits and presses Save themselves. Anything they have
+   * already typed in this sitting wins — the CV fills gaps, it does not
+   * overwrite a correction.
+   */
+  function applySuggestions(suggestions: Record<string, unknown>) {
+    setDraft((d) => {
+      const next = { ...d };
+      const current = profile as unknown as Record<string, unknown>;
+
+      for (const [key, incoming] of Object.entries(suggestions)) {
+        // An edit made in this sitting always wins.
+        if (key in next) continue;
+
+        /*
+         * So does anything already on the profile. Uploading a CV onto a
+         * finished profile used to overwrite it — and when the CV was the
+         * MOC-branded one we generate, that replaced a candidate's name
+         * with our letterhead. Filling a blank is help; replacing an
+         * answer they gave is not.
+         */
+        const saved = key === "name" ? profile.user.name : current[key];
+        const alreadySet = Array.isArray(saved)
+          ? saved.length > 0
+          : saved !== null && saved !== undefined && saved !== "";
+        if (alreadySet) continue;
+
+        next[key] = incoming;
+      }
+      return next;
+    });
+    setSaved(false);
+  }
+
   const text = (key: string) => value<string>(key, "");
   const list = <T,>(key: string) => value<T[]>(key, []);
 
@@ -120,7 +144,8 @@ export function ProfileForm({
   );
 
   return (
-    <div className="grid items-start gap-6 lg:grid-cols-[1fr_320px]">
+    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[auto_minmax(0,1fr)_320px]">
+      <SectionRail sections={profile.sections} />
       <form
         className="space-y-6"
         onSubmit={(e) => {
@@ -128,9 +153,14 @@ export function ProfileForm({
           save();
         }}
       >
+        <CvUpload onSuggestions={applySuggestions} />
+
         {/* --- 1. Personal details ------------------------------------- */}
         <Section id="personal_details" title="Personal details">
-          <PhotoUpload url={profile.photo_url} />
+          <PhotoUpload
+            url={profile.photo_url}
+            initials={profile.user.initials}
+          />
 
           <Pair>
             <Field
@@ -168,11 +198,12 @@ export function ProfileForm({
           </Pair>
 
           <Pair>
-            <Field
+            <Select
               label="Country of residence"
               required
               value={text("country_of_residence")}
               onChange={(v) => set("country_of_residence", v)}
+              options={options.country}
               placeholder="Country"
             />
             <Field
@@ -192,20 +223,22 @@ export function ProfileForm({
           />
 
           <LanguagePicker
+            names={options.language}
+            proficiencies={options.language_proficiency}
             languages={list<{ language: string; proficiency: string }>("languages")}
             onChange={(next) => set("languages", next)}
           />
 
           <Pair>
             <Field
-              label="LinkedIn profile"
+              label="LinkedIn profile (optional)"
               type="url"
               value={text("linkedin_url")}
               onChange={(v) => set("linkedin_url", v)}
               placeholder="LinkedIn profile link"
             />
             <Field
-              label="Portfolio / website link"
+              label="Portfolio / website link (optional)"
               type="url"
               value={text("portfolio_url")}
               onChange={(v) => set("portfolio_url", v)}
@@ -222,32 +255,32 @@ export function ProfileForm({
           </p>
 
           <Pair>
-            <Field
+            <Select
               label="Gender"
               value={text("gender")}
               onChange={(v) => set("gender", v)}
-              placeholder="Gender"
+              options={options.gender}
             />
-            <Field
+            <Select
               label="Nationality"
               value={text("nationality")}
               onChange={(v) => set("nationality", v)}
-              placeholder="Nationality"
+              options={options.nationality}
             />
           </Pair>
 
           <Pair>
-            <Field
+            <Select
               label="Citizenship"
               value={text("citizenship")}
               onChange={(v) => set("citizenship", v)}
-              placeholder="Citizenship"
+              options={options.citizenship}
             />
-            <Field
+            <Select
               label="Ethnicity"
               value={text("ethnicity")}
               onChange={(v) => set("ethnicity", v)}
-              placeholder="Ethnicity"
+              options={options.ethnicity}
             />
           </Pair>
 
@@ -278,17 +311,19 @@ export function ProfileForm({
 
         {/* --- 3. Career details --------------------------------------- */}
         <Section id="career_details" title="Career details">
-          <Field
+          <Select
             label="Primary role category"
             required
             value={text("role_category")}
             onChange={(v) => set("role_category", v)}
+            options={options.role_categories}
             placeholder="Primary role category you are interested in"
           />
-          <Field
-            label="Secondary role category"
+          <Select
+            label="Secondary role category (optional)"
             value={text("secondary_role_category")}
             onChange={(v) => set("secondary_role_category", v)}
+            options={options.role_categories}
             placeholder="Secondary role category you are interested in"
           />
 
@@ -326,12 +361,12 @@ export function ProfileForm({
             />
           </Pair>
 
-          <Field
+          <Select
             label="Time zone availability"
             required
             value={text("timezone_availability")}
             onChange={(v) => set("timezone_availability", v)}
-            placeholder="e.g. UTC+2, or UK business hours"
+            options={options.timezone}
           />
 
           <RadioGroup
@@ -345,37 +380,11 @@ export function ProfileForm({
 
         {/* --- 4. Education -------------------------------------------- */}
         <Section id="education" title="Education">
-          <Pair>
-            <Select
-              label="Highest education level"
-              required
-              value={text("highest_education_level")}
-              onChange={(v) => set("highest_education_level", v)}
-              options={options.education_level}
-            />
-            <Field
-              label="Field of study"
-              required
-              value={text("field_of_study")}
-              onChange={(v) => set("field_of_study", v)}
-            />
-          </Pair>
-
-          <Pair>
-            <Field
-              label="Graduation year"
-              required
-              type="number"
-              value={String(value<number | string>("graduation_year", "") ?? "")}
-              onChange={(v) => set("graduation_year", v)}
-            />
-            <Field
-              label="Institution name"
-              required
-              value={text("institution_name")}
-              onChange={(v) => set("institution_name", v)}
-            />
-          </Pair>
+          <EducationEditor
+            entries={list("education")}
+            levels={options.education_level}
+            onChange={(next) => set("education", next)}
+          />
         </Section>
 
         {/* --- 5. Experience ------------------------------------------- */}
@@ -390,6 +399,7 @@ export function ProfileForm({
         {/* --- 6. Remuneration & benefits ------------------------------ */}
         <Section id="remuneration" title="Remuneration &amp; benefits">
           <SalaryRow
+            currencies={options.currency}
             label="Current or most recent salary"
             currency={value<string>("current_salary_currency", "ZAR")}
             amount={String(value<string | number>("current_salary_amount", "") ?? "")}
@@ -400,6 +410,7 @@ export function ProfileForm({
             onPeriod={(v) => set("current_salary_period", v)}
           />
           <SalaryRow
+            currencies={options.currency}
             label="Expected gross salary"
             currency={value<string>("expected_salary_currency", "ZAR")}
             amount={String(value<string | number>("expected_salary_amount", "") ?? "")}
@@ -413,10 +424,10 @@ export function ProfileForm({
           <TokenPicker
             label="Employee benefits"
             placeholder="Select benefits that matter to you"
-            options={BENEFITS}
+            options={options.benefits}
             values={list<string>("benefits")}
             onChange={(next) => set("benefits", next)}
-            render={(v) => labelFor(BENEFITS, v)}
+            render={(v) => labelFor(options.benefits, v)}
           />
         </Section>
 
@@ -471,53 +482,73 @@ export function ProfileForm({
         onSave={save}
         error={error}
         saved={saved}
+        brandedCv={brandedCv}
       />
     </div>
   );
 }
 
 /* --- Pieces ---------------------------------------------------------------- */
-
-function PhotoUpload({ url }: { url: string }) {
+/**
+ * The progress rail down the left edge.
+ *
+ * One dot per section, filled as that section is completed, and each one
+ * jumps to its card. The dot alone says nothing to a screen reader, so every
+ * link carries the section name and how far along it is.
+ */
+function SectionRail({ sections }: { sections: ProfileSection[] }) {
   return (
-    <div className="flex items-center gap-4">
-      {url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={url}
-          alt=""
-          className="size-14 rounded-full object-cover"
-        />
-      ) : (
-        <span
-          aria-hidden
-          className="grid size-14 place-items-center rounded-full border border-dashed border-line-strong text-ink-subtle"
+    <nav
+      aria-label="Profile sections"
+      className="sticky top-6 hidden h-fit flex-col items-center gap-1 rounded-full bg-card px-1 py-2.5 xl:flex"
+    >
+      {sections.map((section) => (
+        <a
+          key={section.slug}
+          href={`#${section.slug}`}
+          title={`${section.label} — ${section.progress}% complete`}
+          className="group grid size-5 place-items-center rounded-full transition-colors hover:bg-card-muted"
         >
-          <Icon name="plus" className="size-5" />
-        </span>
-      )}
-      <div>
-        <button
-          type="button"
-          className="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:border-line-strong hover:bg-card-muted"
-        >
-          Upload professional photo
-        </button>
-        <p className="mt-1 text-xs text-ink-subtle">JPG or PNG, up to 2&nbsp;MB.</p>
-      </div>
-    </div>
+          <span
+            aria-hidden
+            className={cn(
+              "size-1.5 rounded-full transition-colors",
+              section.completed
+                ? "bg-brand-700"
+                : section.progress > 0
+                  ? "bg-status-yellow"
+                  : "bg-line-strong",
+              "group-hover:bg-brand-400",
+            )}
+          />
+          <span className="sr-only">
+            {section.label}, {section.progress}% complete
+          </span>
+        </a>
+      ))}
+    </nav>
   );
 }
 
 function LanguagePicker({
   languages,
+  names,
+  proficiencies,
   onChange,
 }: {
   languages: Array<{ language: string; proficiency: string }>;
+  /** The languages on offer, from /api/options/. */
+  names: Option[];
+  proficiencies: Option[];
   onChange: (next: Array<{ language: string; proficiency: string }>) => void;
 }) {
   const [name, setName] = useState("");
   const [proficiency, setProficiency] = useState("");
+
+  // One entry per language: offering one already in the list invites a
+  // duplicate with a different proficiency.
+  const taken = new Set(languages.map((l) => l.language));
+  const available = names.filter((option) => !taken.has(option.value));
 
   return (
     <div>
@@ -528,7 +559,7 @@ function LanguagePicker({
           {languages.map((l, i) => (
             <Token
               key={`${l.language}-${i}`}
-              prefix={labelFor(LANGUAGE_PROFICIENCY, l.proficiency)}
+              prefix={labelFor(proficiencies, l.proficiency)}
               label={l.language}
               onRemove={() => onChange(languages.filter((_, j) => j !== i))}
             />
@@ -538,10 +569,11 @@ function LanguagePicker({
 
       <div className="mt-2 flex flex-wrap items-end gap-2">
         <div className="min-w-44 flex-1">
-          <Field
+          <Select
             label="Language name"
             value={name}
             onChange={setName}
+            options={available}
             placeholder="Language name"
           />
         </div>
@@ -550,13 +582,13 @@ function LanguagePicker({
             label="Proficiency"
             value={proficiency}
             onChange={setProficiency}
-            options={LANGUAGE_PROFICIENCY}
+            options={proficiencies}
           />
         </div>
         <AddButton
-          disabled={!name.trim() || !proficiency}
+          disabled={!name || !proficiency}
           onClick={() => {
-            onChange([...languages, { language: name.trim(), proficiency }]);
+            onChange([...languages, { language: name, proficiency }]);
             setName("");
             setProficiency("");
           }}
@@ -568,6 +600,7 @@ function LanguagePicker({
 
 function SalaryRow({
   label,
+  currencies,
   currency,
   amount,
   period,
@@ -577,6 +610,7 @@ function SalaryRow({
   onPeriod,
 }: {
   label: string;
+  currencies: Option[];
   currency: string;
   amount: string;
   period: string;
@@ -588,19 +622,21 @@ function SalaryRow({
   return (
     <div>
       <Label>{label}</Label>
+      {/* "Period" on its own read as a mystery: it says whether the figure
+          beside it is per month or per year. */}
+      <p className="mt-0.5 text-xs text-ink-subtle">
+        The amount, and whether it is per month or per year.
+      </p>
       <div className="mt-1.5 flex flex-wrap gap-2">
-        <select
+        <Select
+          hideLabel
+          className="w-28"
+          label={`${label} currency`}
           value={currency}
-          onChange={(e) => onCurrency(e.target.value)}
-          aria-label={`${label} currency`}
-          className="rounded-lg border border-line bg-card px-3 py-2.5 text-sm text-ink focus:border-brand-500 focus:outline-none"
-        >
-          {CURRENCIES.map((c) => (
-            <option key={c.value} value={c.value}>
-              {c.label}
-            </option>
-          ))}
-        </select>
+          onChange={onCurrency}
+          options={currencies}
+          required
+        />
         <input
           type="number"
           min="0"
@@ -611,19 +647,15 @@ function SalaryRow({
           placeholder="12 345"
           className="min-w-32 flex-1 rounded-lg border border-line bg-card px-3 py-2.5 text-sm text-ink placeholder:text-ink-subtle focus:border-brand-500 focus:outline-none"
         />
-        <select
+        <Select
+          hideLabel
+          className="w-36"
+          label={`${label} period`}
+          placeholder="Per month / year"
           value={period}
-          onChange={(e) => onPeriod(e.target.value)}
-          aria-label={`${label} period`}
-          className="rounded-lg border border-line bg-card px-3 py-2.5 text-sm text-ink focus:border-brand-500 focus:outline-none"
-        >
-          <option value="">Period</option>
-          {periods.map((p) => (
-            <option key={p.value} value={p.value}>
-              {p.label}
-            </option>
-          ))}
-        </select>
+          onChange={onPeriod}
+          options={periods}
+        />
       </div>
     </div>
   );
@@ -660,19 +692,18 @@ function TokenPicker({
           ))}
         </div>
       ) : null}
-      <select
+      {/* Always reads as empty: picking adds a token rather than setting a
+          value, so there is nothing for it to show as chosen. */}
+      <Select
+        hideLabel
+        className="mt-2"
+        label={label}
+        placeholder={placeholder}
         value=""
-        onChange={(e) => e.target.value && onChange([...values, e.target.value])}
-        aria-label={label}
-        className="mt-2 w-full rounded-lg border border-line bg-card px-3 py-2.5 text-sm text-ink-subtle focus:border-brand-500 focus:outline-none"
-      >
-        <option value="">{placeholder}</option>
-        {remaining.map((o) => (
-          <option key={o.value} value={o.value} className="text-ink">
-            {o.label}
-          </option>
-        ))}
-      </select>
+        onChange={(picked) => picked && onChange([...values, picked])}
+        options={remaining}
+        required
+      />
     </div>
   );
 }

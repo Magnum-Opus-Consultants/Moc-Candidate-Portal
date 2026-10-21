@@ -8,6 +8,7 @@
  */
 
 export type IconName =
+  | "file"
   | "search"
   | "filter"
   | "plus"
@@ -41,7 +42,10 @@ export type IconName =
   | "users"
   | "pin"
   | "wallet"
-  | "external";
+  | "external"
+  | "copy"
+  | "trash"
+  | "sidebar";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   search: (
@@ -51,6 +55,25 @@ const PATHS: Record<IconName, React.ReactNode> = {
     </>
   ),
   filter: <path d="M4 6h16M7 12h10M10 18h4" />,
+  sidebar: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M10 4v16" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15V5a1 1 0 0 1 1-1h9" />
+    </>
+  ),
+  trash: (
+    <>
+      <path d="M4 7h16M10 7V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2" />
+      <path d="M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12" />
+      <path d="M10 11v6M14 11v6" />
+    </>
+  ),
   plus: <path d="M12 5v14M5 12h14" />,
   "chevron-down": <path d="m6 9 6 6 6-6" />,
   "chevron-right": <path d="m9 6 6 6-6 6" />,
@@ -98,6 +121,12 @@ const PATHS: Record<IconName, React.ReactNode> = {
     <>
       <path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6" />
       <path d="M10.5 19a2 2 0 0 0 3 0" />
+    </>
+  ),
+  file: (
+    <>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+      <path d="M14 3v5h5M9 13h6M9 17h6" />
     </>
   ),
   archive: (

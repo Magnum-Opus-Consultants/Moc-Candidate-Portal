@@ -97,6 +97,17 @@ def _body(request) -> dict:
         return {}
 
 
+def _apply_remember(request, remember) -> None:
+    """Honour the "Remember me" box.
+
+    Unchecked, the session cookie expires when the browser closes, which is
+    what a shared or public machine needs. Checked, it keeps Django's default
+    lifetime. Called after login(), since that cycles the session key.
+    """
+    if not remember:
+        request.session.set_expiry(0)
+
+
 @csrf_exempt
 @require_http_methods(["POST"])
 def register(request):
@@ -127,6 +138,7 @@ def register(request):
         role=Role.JOB_SEEKER,
     )
     login(request, user, backend=MODEL_BACKEND)
+    _apply_remember(request, data.get("remember"))
     send_welcome_email(user)
     return JsonResponse(_payload(user), status=201)
 
@@ -150,6 +162,7 @@ def login_view(request):
             {"detail": "Those details don't match an account."}, status=401
         )
     login(request, user)
+    _apply_remember(request, data.get("remember"))
     return JsonResponse(_payload(user))
 
 

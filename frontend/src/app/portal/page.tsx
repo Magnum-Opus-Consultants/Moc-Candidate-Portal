@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { ProfileSectionRow, RecommendedJobCard } from "@/components/job-cards";
@@ -15,8 +16,9 @@ import {
   SectionHeading,
   StatCard,
   StatusBadge,
+  cn,
 } from "@/components/ui/primitives";
-import { api, relativeDays } from "@/lib/api";
+import { api, relativeDays, API_BASE_URL } from "@/lib/api";
 
 export default function CandidateDashboardPage() {
   return (
@@ -26,7 +28,22 @@ export default function CandidateDashboardPage() {
   );
 }
 
+/**
+ * A new account has no name yet — sign-up takes only an email — and
+ * display_name falls back to the username, which is the email address.
+ * Greeting someone by their email reads like a mail-merge gone wrong, so
+ * drop the name until there is a real one.
+ */
+function greeting(name: string): string {
+  const first = name.trim().split(" ")[0];
+  if (!first || first.includes("@")) return "Welcome back";
+  return `Welcome back, ${first}`;
+}
+
 async function Dashboard() {
+  // Relative dates ('3 days ago') are true only at the moment they are
+  // rendered, so this subtree is request-time rather than prerendered.
+  await connection();
   const result = await api.candidateDashboard();
   if (!result.ok) return <BackendOffline error={result.error} />;
 
@@ -39,7 +56,7 @@ async function Dashboard() {
   return (
     <div className="space-y-8">
       <PageHeading
-        title={`Welcome back, ${user.name.split(" ")[0]}`}
+        title={greeting(user.name)}
         subtext="Your applications, saved roles and the positions we think fit you."
         action={
           <Button href="/" variant="outline" size="sm">
@@ -51,26 +68,44 @@ async function Dashboard() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
         {/* Main column. */}
         <div className="space-y-8">
-          <div className="grid gap-3 sm:grid-cols-2">
+          {/*
+            Each tile links to the page behind it — a count the reader cannot
+            act on is just decoration. "Total applications" was dropped: with
+            nothing applied for it read 0 beside another 0, and once there is
+            history it only repeats what the applications page already shows.
+            "Roles matched" takes its place, which is the one number that is
+            useful on day one.
+          */}
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <StatCard
+              href="/portal/applications"
               value={stats.active_applications}
               title="Active applications"
-              supporting="Still in progress"
+              supporting={
+                stats.active_applications === 0
+                  ? "Nothing in progress yet"
+                  : "Still in progress"
+              }
             />
             <StatCard
+              href="/portal/applications"
               value={stats.shortlisted}
               title="Shortlisted"
-              supporting="You made the cut"
+              supporting={
+                stats.shortlisted === 0
+                  ? "None yet — keep applying"
+                  : "You made the cut"
+              }
             />
             <StatCard
+              href="/portal/saved"
               value={stats.saved_jobs}
               title="Saved jobs"
-              supporting="Roles you kept for later"
-            />
-            <StatCard
-              value={stats.total_applications}
-              title="Total applications"
-              supporting="All time"
+              supporting={
+                stats.saved_jobs === 0
+                  ? "Bookmark roles to compare later"
+                  : "Roles you kept for later"
+              }
             />
           </div>
 
@@ -167,20 +202,36 @@ async function Dashboard() {
             </div>
 
             <p className="mt-5 text-center text-sm leading-relaxed text-ink-muted">
-              {profile.can_download_branded_cv
-                ? "Your profile is complete enough to download an MOC-branded CV."
-                : `Reach 80% to unlock your MOC-branded CV — ${80 - profile.completion}% to go.`}
+              {profile.completion >= 100
+                ? "Your profile is complete. A full profile is ranked higher against every role you apply for."
+                : profile.can_download_branded_cv
+                  ? "Your profile is complete enough to download an MOC-branded CV."
+                  : `Reach 80% to unlock your MOC-branded CV — ${80 - profile.completion}% to go.`}
             </p>
 
-            <Button
-              size="sm"
-              className="mt-4 w-full"
-              variant={profile.can_download_branded_cv ? "primary" : "outline"}
-              disabled={!profile.can_download_branded_cv}
-            >
-              <Icon name="download" className="size-3.5" />
-              Download branded CV
-            </Button>
+            {/*
+              Not <Button>: this is a real download, so it has to be an
+              anchor the browser can follow. Disabled below the gate, where
+              a span rather than a link stops it being focusable.
+            */}
+            {profile.can_download_branded_cv ? (
+              <a
+                href={`${API_BASE_URL}/api/candidate/cv/`}
+                className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-700 px-4 text-sm font-semibold text-brand-ink shadow-sm transition-all hover:bg-brand-800 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-200 active:scale-[0.99]"
+              >
+                <Icon name="download" className="size-4" />
+                Download branded CV
+              </a>
+            ) : (
+              <span
+                aria-disabled
+                title={`Unlocks at 80% — ${80 - profile.completion}% to go`}
+                className="mt-5 flex h-11 w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-line bg-card-muted px-4 text-sm font-semibold text-ink-subtle"
+              >
+                <Icon name="download" className="size-4" />
+                Download branded CV
+              </span>
+            )}
 
             {incomplete.length > 0 ? (
               <div className="mt-5 border-t border-line pt-4">
@@ -195,12 +246,32 @@ async function Dashboard() {
               </div>
             ) : null}
 
+            {/* "Complete your profile" under a full ring is nonsense — once
+                it is done the link is for keeping it current. */}
+            {/*
+              The quiet one once the profile is done: two filled slabs of
+              equal weight make neither of them the obvious thing to press.
+              The chevron sits in a group-hover nudge rather than floating
+              at the end of the line.
+            */}
             <Link
               href="/portal/profile"
-              className="mt-4 inline-flex w-full items-center justify-center gap-1 rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-800"
+              className={cn(
+                "group mt-2 flex h-11 w-full items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-200 active:scale-[0.99]",
+                profile.completion >= 100
+                  ? "text-ink-muted hover:bg-card-muted hover:text-ink"
+                  : "bg-brand-700 text-brand-ink shadow-sm hover:bg-brand-800 hover:shadow-md",
+              )}
             >
-              {profile.completion === 0 ? "Fill in your profile" : "Complete your profile"}
-              <Icon name="chevron-right" className="size-3.5" />
+              {profile.completion === 0
+                ? "Fill in your profile"
+                : profile.completion >= 100
+                  ? "Review and update my profile"
+                  : "Complete your profile"}
+              <Icon
+                name="chevron-right"
+                className="size-3.5 transition-transform group-hover:translate-x-0.5"
+              />
             </Link>
           </Card>
         </aside>

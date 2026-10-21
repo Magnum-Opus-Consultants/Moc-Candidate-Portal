@@ -46,7 +46,9 @@ export type Job = {
   status: string;
   status_label: string;
   /** {name, level} where level is required / preferred / optional. */
-  required_skills: Array<{ name: string; level: string } | string>;
+  required_skills: Array<
+    { name: string; level?: string; proficiency?: string } | string
+  >;
   posted_at: string | null;
   closes_at: string | null;
   updated_at: string;
@@ -67,6 +69,26 @@ export type Job = {
   working_hours_end: number | null;
   working_hours_label: string;
   working_hours_count: number | null;
+  // The posting form — everything the hiring manager can set. Serialised by
+  // JobSerializer, so an edit can seed the form from what is stored.
+  ideal_start_date: string | null;
+  hr_email: string;
+  hr_phone: string;
+  candidate_location: string;
+  night_shift: string;
+  flexible_hours: boolean;
+  citizenship_requirement: string;
+  language_requirements: Array<{ language: string; proficiency: string }>;
+  minimum_years_experience: number | null;
+  industry_experience: string;
+  education_requirement: string;
+  field_of_study: string;
+  salary_currency: string;
+  salary_min: string | null;
+  salary_max: string | null;
+  salary_period: string;
+  benefits: string[];
+
   match?: Match;
   saved_at?: string;
   viewed_at?: string;
@@ -152,6 +174,15 @@ export type CandidateProfile = {
 
   // Experience
   experience: WorkExperienceEntry[];
+  education: Array<{
+    id?: number;
+    level: string;
+    level_label?: string;
+    field_of_study: string;
+    institution_name: string;
+    graduation_year: number | string | null;
+    is_current: boolean;
+  }>;
 
   // Remuneration & benefits
   current_salary_currency: string;
@@ -191,7 +222,20 @@ export type ProfileOptions = {
   proficiency: Array<{ value: string; label: string }>;
   salary_period: Array<{ value: string; label: string }>;
   importance: Array<{ value: string; label: string }>;
-  role_categories: string[];
+  role_categories: Array<{ value: string; label: string }>;
+  language: Array<{ value: string; label: string }>;
+  citizenship_requirement: Array<{ value: string; label: string }>;
+  industry_experience: Array<{ value: string; label: string }>;
+  years_experience: Array<{ value: string; label: string }>;
+  language_proficiency: Array<{ value: string; label: string }>;
+  gender: Array<{ value: string; label: string }>;
+  ethnicity: Array<{ value: string; label: string }>;
+  nationality: Array<{ value: string; label: string }>;
+  citizenship: Array<{ value: string; label: string }>;
+  country: Array<{ value: string; label: string }>;
+  timezone: Array<{ value: string; label: string }>;
+  benefits: Array<{ value: string; label: string }>;
+  currency: Array<{ value: string; label: string }>;
 };
 
 export type ApplicationEvent = {
@@ -231,6 +275,11 @@ export type Application = {
 export type ApplicationList = {
   results: Application[];
   counts: Record<string, number>;
+  /** Matching the current tab, not every application. */
+  count: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
   pipeline: PipelineStage[];
 };
 
@@ -260,12 +309,53 @@ export type Activity = {
   created_at: string;
 };
 
+/** A trigger an automatic email can fire on, and how it can be narrowed. */
+export type EmailTrigger = {
+  value: string;
+  label: string;
+  placeholders: string[];
+  conditions: Array<{
+    field: string;
+    label: string;
+    options: Array<{ value: string; label: string }>;
+  }>;
+};
+
+/** One email the portal has sent, or tried to. */
+export type EmailLogEntry = {
+  id: number;
+  trigger: string;
+  trigger_label: string;
+  template_label: string;
+  recipient: string;
+  subject: string;
+  body: string;
+  status: "sent" | "failed";
+  status_label: string;
+  error: string;
+  about: string;
+  created_at: string;
+};
+
+export type EmailsPage = {
+  results: AutomaticEmail[];
+  triggers: EmailTrigger[];
+  log: EmailLogEntry[];
+};
+
 export type AutomaticEmail = {
   id: number;
   event: string;
   label: string;
   subject: string;
   body: string;
+  trigger: string;
+  trigger_label: string;
+  conditions: Record<string, string>;
+  is_active: boolean;
+  /** False for the three the Client supplied: switchable off, not deletable. */
+  is_custom: boolean;
+  send_count: number;
   updated_at: string;
 };
 
@@ -273,6 +363,8 @@ export type JobCategory = {
   name: string;
   job_count: number;
   new_count: number;
+  /** A discipline MOC recruits for with nothing live right now. */
+  coming_soon: boolean;
 };
 
 export type CandidateDashboard = {
@@ -401,6 +493,52 @@ async function csrfToken(forwarded: Record<string, string>): Promise<string> {
   return readCookie(document.cookie, "csrftoken");
 }
 
+/**
+ * Post the job posting form, create or edit.
+ *
+ * Its own path rather than `send`, because a validation failure names which
+ * fields were rejected and why, and the form rings those fields and scrolls
+ * to the first of them.
+ */
+async function postJobForm(
+  path: string,
+  job: Record<string, unknown>,
+): Promise<CreateJobResult> {
+  try {
+    const forwarded = await forwardedHeaders();
+    const token = await csrfToken(forwarded);
+
+    const response = await fetch(`${apiBase()}${path}`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        ...forwarded,
+        ...(token ? { "X-CSRFToken": token } : {}),
+      },
+      credentials: "include",
+      body: JSON.stringify(job),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: data.detail ?? `${response.status} ${response.statusText}`,
+        fields: Array.isArray(data.fields) ? data.fields : undefined,
+        fieldErrors:
+          data.field_errors && typeof data.field_errors === "object"
+            ? (data.field_errors as Record<string, string>)
+            : undefined,
+      };
+    }
+    // Create answers with the job itself; edit wraps it alongside a message.
+    return { ok: true, data: (data.job ?? data) as Job };
+  } catch (error) {
+    return { ok: false, error: (error as Error).message };
+  }
+}
+
 async function send<T = unknown>(
   method: "POST" | "DELETE",
   path: string,
@@ -441,20 +579,171 @@ async function send<T = unknown>(
 
 type Listed<T> = { results: T[] };
 
+/**
+ * The job list, with a count per filter option so the page can show what
+ * each choice would do before it is clicked.
+ */
+export type ManagerJobList = {
+  results: Job[];
+  count: number;
+  /** Every posting per status, so headings count more than one page. */
+  status_counts: Record<string, number>;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+};
+
+export type JobList = {
+  results: Job[];
+  facets: Record<string, Record<string, number>>;
+  /** Matching this search and these filters. */
+  count: number;
+  /** Every publicly listed posting, regardless of filters. */
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+};
+
+/** Which external identity providers have credentials configured. */
+export type AuthProviders = {
+  linkedin: boolean;
+};
+
+/** What a parsed CV offers to fill in, keyed as the profile update expects. */
+export type CvSuggestions = {
+  suggestions: Record<string, unknown>;
+  fields: number;
+  cv_name: string;
+};
+
+/** Creating a job names the required fields that were left empty. */
+/** A hiring manager's note on a candidate, seen by the whole team. */
+export type CandidateComment = {
+  id: number;
+  author: { id: number; name: string; initials: string };
+  body: string;
+  created_at: string;
+};
+
+export type CreateJobResult =
+  | { ok: true; data: Job }
+  | {
+      ok: false;
+      error: string;
+      /** Field names the server rejected, in the order to visit them. */
+      fields?: string[];
+      /** Why each one was rejected, keyed by field name. */
+      fieldErrors?: Record<string, string>;
+    };
+
+/** The Recommended Jobs page: the same shape as the job list, plus `ranked`. */
+export type RecommendedList = {
+  results: Job[];
+  facets: Record<string, Record<string, number>>;
+  count: number;
+  /** How many of `count` were actually scored. */
+  ranked: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+};
+
+/** The candidate database: multi-select filters with counts, and paging. */
+export type CandidateList = {
+  results: CandidateProfile[];
+  facets: Record<string, Record<string, number>>;
+  count: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+};
+
 export const api = {
-  jobs: (query = "") => get<Listed<Job>>(`/api/jobs/${query}`),
+  jobs: (query = "") => get<JobList>(`/api/jobs/${query}`),
   jobCategories: () => get<Listed<JobCategory>>("/api/jobs/categories/"),
   profileOptions: () => get<ProfileOptions>("/api/options/"),
   job: (id: number | string) => get<Job>(`/api/jobs/${id}/`),
 
   candidateDashboard: () => get<CandidateDashboard>("/api/candidate/dashboard/"),
   candidateProfile: () => get<CandidateProfile>("/api/candidate/profile/"),
+  /**
+   * Upload a CV and get suggested profile fields back.
+   *
+   * Multipart rather than JSON, so it cannot go through `send`: the browser
+   * has to set its own multipart boundary, which means no Content-Type
+   * header of ours.
+   */
+  /** Upload a profile photo. Multipart, so it cannot go through `send`. */
+  uploadPhoto: async (file: File): Promise<MutationResult<{ photo_url: string }>> => {
+    try {
+      const forwarded = await forwardedHeaders();
+      const token = await csrfToken(forwarded);
+      const form = new FormData();
+      form.append("photo", file);
+
+      const response = await fetch(`${apiBase()}/api/candidate/profile/photo/`, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          ...forwarded,
+          ...(token ? { "X-CSRFToken": token } : {}),
+        },
+        credentials: "include",
+        body: form,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return {
+          ok: false,
+          error: data.detail ?? `${response.status} ${response.statusText}`,
+        };
+      }
+      return { ok: true, data: data as { photo_url: string } };
+    } catch (error) {
+      return { ok: false, error: (error as Error).message };
+    }
+  },
+  removePhoto: () =>
+    send<{ photo_url: string }>("DELETE", "/api/candidate/profile/photo/"),
+  uploadCv: async (file: File): Promise<MutationResult<CvSuggestions>> => {
+    try {
+      const forwarded = await forwardedHeaders();
+      const token = await csrfToken(forwarded);
+      const form = new FormData();
+      form.append("cv", file);
+
+      const response = await fetch(`${apiBase()}/api/candidate/profile/cv/`, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          ...forwarded,
+          ...(token ? { "X-CSRFToken": token } : {}),
+        },
+        credentials: "include",
+        body: form,
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return {
+          ok: false,
+          error: data.detail ?? `${response.status} ${response.statusText}`,
+        };
+      }
+      return { ok: true, data: data as CvSuggestions };
+    } catch (error) {
+      return { ok: false, error: (error as Error).message };
+    }
+  },
   updateCandidateProfile: (patch: Record<string, unknown>) =>
     send<CandidateProfile>("POST", "/api/candidate/profile/update/", patch),
   candidateApplications: (query = "") =>
     get<ApplicationList>(`/api/candidate/applications/${query}`),
-  candidateSaved: () => get<Listed<Job>>("/api/candidate/saved/"),
-  candidateRecommended: () => get<Listed<Job>>("/api/candidate/recommended/"),
+  candidateSaved: (query = "") =>
+    get<Listed<Job>>(`/api/candidate/saved/${query}`),
+  candidateRecommended: (query = "") =>
+    get<RecommendedList>(`/api/candidate/recommended/${query}`),
   candidateRecentlyViewed: () =>
     get<Listed<Job>>("/api/candidate/recently-viewed/"),
   updateProfile: (data: Record<string, unknown>) =>
@@ -467,24 +756,119 @@ export const api = {
   toggleSave: (id: number | string) =>
     send<{ saved: boolean }>("POST", `/api/jobs/${id}/save/`),
 
+  /**
+   * Post a new job. Shares `postJobForm` with the edit route, because both
+   * answer with the fields that failed and the form marks them.
+   */
+  createJob: (job: Record<string, unknown>) =>
+    postJobForm("/api/manager/jobs/create/", job),
   managerDashboard: () => get<ManagerDashboard>("/api/manager/dashboard/"),
-  managerJobs: (query = "") => get<Listed<Job>>(`/api/manager/jobs/${query}`),
+  managerJobs: (query = "") => get<ManagerJobList>(`/api/manager/jobs/${query}`),
   managerJob: (id: number | string) =>
     get<ManagerJobDetail>(`/api/manager/jobs/${id}/`),
+  /**
+   * Publish an approved posting. 409 means it is already live; 400 carries
+   * `fields` when a draft is still missing something the public list needs.
+   */
+  publishJob: (id: number | string) =>
+    send<{ detail: string; job: Job }>("POST", `/api/manager/jobs/${id}/publish/`),
+  /** Save edits to an existing posting. A live job updates on the board at once. */
+  updateJob: (id: number | string, job: Record<string, unknown>) =>
+    postJobForm(`/api/manager/jobs/${id}/update/`, job),
+  /** Copy a posting into a new draft, carrying no applicants or posted date. */
+  duplicateJob: (id: number | string) =>
+    send<{ detail: string; job: Job }>(
+      "POST",
+      `/api/manager/jobs/${id}/duplicate/`,
+    ),
+  /** Delete a posting nobody has applied to; 409 when it has applicants. */
+  deleteJob: (id: number | string) =>
+    send<{ detail: string }>("POST", `/api/manager/jobs/${id}/delete/`),
+  /**
+   * Delete several at once. Partial by design: postings with applicants are
+   * kept and named back in `detail`, rather than failing the whole batch.
+   */
+  deleteJobs: (ids: number[]) =>
+    send<{ detail: string; deleted: number; kept: string[] }>(
+      "POST",
+      "/api/manager/jobs/delete/",
+      { ids },
+    ),
   managerCandidates: (query = "") =>
-    get<Listed<CandidateProfile>>(`/api/manager/candidates/${query}`),
+    get<CandidateList>(`/api/manager/candidates/${query}`),
+  /** Leave a note on a candidate for the whole hiring team to see. */
+  addCandidateComment: (id: number | string, body: string) =>
+    send<{ comment: CandidateComment }>(
+      "POST",
+      `/api/manager/candidates/${id}/comments/`,
+      { body },
+    ),
+  /** Remove a note you wrote. The server refuses someone else's. */
+  deleteCandidateComment: (id: number | string, commentId: number) =>
+    send<{ detail: string }>(
+      "POST",
+      `/api/manager/candidates/${id}/comments/${commentId}/delete/`,
+    ),
   managerCandidate: (id: number | string) =>
-    get<{ profile: CandidateProfile; applications: Application[] }>(
+    get<{
+      profile: CandidateProfile;
+      applications: Application[];
+      comments: CandidateComment[];
+      is_bookmarked: boolean;
+      shortlisted_job_ids: number[];
+    }>(
       `/api/manager/candidates/${id}/`,
     ),
-  managerEmails: () => get<Listed<AutomaticEmail>>("/api/manager/emails/"),
+  /** Personal to the manager; returns the state it landed in. */
+  bookmarkCandidate: (candidateId: number) =>
+    send<{ bookmarked: boolean }>(
+      "POST",
+      `/api/manager/candidates/${candidateId}/bookmark/`,
+    ),
+  /** Shared with the hiring team, so it belongs to a posting. */
+  shortlistCandidate: (candidateId: number, jobId: number) =>
+    send<{ shortlisted: boolean; job_id: number }>(
+      "POST",
+      `/api/manager/candidates/${candidateId}/shortlist/`,
+      { job_id: jobId },
+    ),
+  managerEmails: () => get<EmailsPage>("/api/manager/emails/"),
+  /** Save an email's wording. Sends after this use it; the log keeps history. */
+  saveEmail: (id: number, data: Record<string, unknown>) =>
+    send<{ detail: string; email: AutomaticEmail }>(
+      "POST",
+      `/api/manager/emails/${id}/save/`,
+      data,
+    ),
+  /** Add an email on one of the supported triggers. */
+  createEmail: (data: Record<string, unknown>) =>
+    send<{ detail: string; email: AutomaticEmail }>(
+      "POST",
+      "/api/manager/emails/create/",
+      data,
+    ),
+  /** Delete an email added in the portal; the supplied three return 409. */
+  deleteEmail: (id: number) =>
+    send<{ detail: string }>("POST", `/api/manager/emails/${id}/delete/`),
 
-  // Authentication + account (email/password; social providers are later scope).
+  // Authentication + account.
   me: () => get<AuthUser>("/api/auth/me/"),
-  login: (email: string, password: string) =>
-    send<AuthUser>("POST", "/api/auth/login/", { email, password }),
-  register: (name: string, email: string, password: string) =>
-    send<AuthUser>("POST", "/api/auth/register/", { name, email, password }),
+  /** Which external sign-in buttons are configured on the backend. */
+  authProviders: () => get<AuthProviders>("/api/auth/providers/"),
+  login: (email: string, password: string, remember = true) =>
+    send<AuthUser>("POST", "/api/auth/login/", { email, password, remember }),
+  register: (
+    name: string,
+    email: string,
+    password: string,
+    remember = true,
+  ) =>
+    send<AuthUser>("POST", "/api/auth/register/", {
+      name,
+      email,
+      password,
+      remember,
+    }),
   logout: () => send("POST", "/api/auth/logout/"),
   updateName: (name: string) =>
     send<AuthUser>("POST", "/api/account/profile/", { name }),

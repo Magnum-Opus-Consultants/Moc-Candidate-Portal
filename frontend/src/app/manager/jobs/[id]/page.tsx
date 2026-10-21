@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { ApplicantTabs } from "@/components/applicant-tabs";
+import { JobAdminActions } from "@/components/job-admin-actions";
 import { JobChips } from "@/components/job-cards";
+import { PublishJobButton } from "@/components/publish-job-button";
 import { BackendOffline, PageSkeleton } from "@/components/states";
 import { Icon } from "@/components/ui/icon";
 import {
@@ -67,7 +69,7 @@ async function JobOverview({
               />
             </div>
             <Link
-              href={`/jobs/${job.id}`}
+              href={`/manager/jobs/${job.id}/preview`}
               className="mt-1 inline-flex items-center gap-1 text-sm text-brand-700"
             >
               <Icon name="expand" className="size-3.5" />
@@ -98,14 +100,26 @@ async function JobOverview({
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-line pt-5">
-          <Button variant="outline" size="sm">
+          <PublishJobButton jobId={job.id} status={job.status} />
+          <Button
+            variant="outline"
+            size="sm"
+            href={`/manager/jobs/${job.id}/edit`}
+          >
             <Icon name="edit" className="size-3.5" />
             Edit
           </Button>
-          <Button variant="outline" size="sm">
-            Duplicate
-          </Button>
-          <Button variant="outline" size="sm">
+          <JobAdminActions
+            jobId={job.id}
+            title={job.title}
+            applicantCount={job.applicant_count}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            href={`/manager/jobs/${job.id}/preview`}
+          >
+            <Icon name="expand" className="size-3.5" />
             Preview
           </Button>
           {job.status === "closed" ? (

@@ -72,10 +72,10 @@ def score_match(profile: CandidateProfile | None, job: Job) -> MatchResult:
         applicable += WEIGHT_ROLE_CATEGORY
         if job_cat == cand_cat:
             total += WEIGHT_ROLE_CATEGORY
-            reasons.append({"label": "Role category", "level": MATCH})
+            reasons.append({"label": "Discipline matches", "level": MATCH})
         elif job_cat in cand_cat or cand_cat in job_cat:
             total += WEIGHT_ROLE_CATEGORY // 2
-            reasons.append({"label": "Role category partial match", "level": PARTIAL})
+            reasons.append({"label": "Discipline close", "level": PARTIAL})
 
     # Skills — proportional to how much of the job's required list is covered.
     required = _normalise(job.required_skill_names)
@@ -105,7 +105,7 @@ def score_match(profile: CandidateProfile | None, job: Job) -> MatchResult:
             distance = len(levels)
         if distance == 0:
             total += WEIGHT_EXPERIENCE
-            reasons.append({"label": "Experience level", "level": MATCH})
+            reasons.append({"label": "Experience level matches", "level": MATCH})
         elif distance == 1:
             total += WEIGHT_EXPERIENCE // 2
             reasons.append({"label": "Experience level close", "level": PARTIAL})

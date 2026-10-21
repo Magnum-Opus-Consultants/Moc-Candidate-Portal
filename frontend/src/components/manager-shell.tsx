@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { LogoMark } from "@/components/logo";
+import { SidebarLayout } from "@/components/collapsible-sidebar";
 import { LogoutButton } from "@/components/logout-button";
 import { NavLink } from "@/components/nav-link";
 import { Icon } from "@/components/ui/icon";
@@ -9,10 +9,12 @@ import { JOB_STATUS_TONE, cn } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 
 /**
- * The hiring manager shell: deep navy sidebar listing open and closed postings.
+ * The hiring manager shell: the near-black rail from the frame, listing
+ * open and closed postings.
  *
- * The collapsible sections use <details>, so they need no client state and the
- * whole sidebar can stay a server component inside one Suspense boundary.
+ * The sections inside use <details>, so the rail itself needs no client
+ * state and stays a server component inside one Suspense boundary. Only
+ * whether the rail is open lives on the client — see SidebarLayout.
  */
 
 const DOT_CLASS: Record<string, string> = {
@@ -38,36 +40,31 @@ export function ManagerShell({
   sidebar: ReactNode;
 }) {
   return (
-    <div className="flex min-h-dvh">
-      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col bg-brand-900 lg:flex">
-        {sidebar}
-      </aside>
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-10 border-b border-line bg-card/90 px-5 py-3 backdrop-blur">
-          <nav className="flex items-center gap-1">
-            {TOP_NAV.map((item) => (
-              <NavLink
-                key={item.href}
-                href={item.href}
-                variant="tab"
-                exact={item.exact}
-              >
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
-        </header>
-
-        <main className="flex-1 px-5 py-7">{children}</main>
-      </div>
-    </div>
+    <SidebarLayout
+      storageKey="moc:manager-sidebar"
+      sidebar={sidebar}
+      sidebarClassName="bg-sidebar"
+      width="w-72"
+      label="jobs sidebar"
+      nav={TOP_NAV.map((item) => (
+        <NavLink
+          key={item.href}
+          href={item.href}
+          variant="tab"
+          exact={item.exact}
+        >
+          {item.label}
+        </NavLink>
+      ))}
+    >
+      {children}
+    </SidebarLayout>
   );
 }
 
 function JobLinks({ jobs, emptyLabel }: { jobs: SidebarJob[]; emptyLabel: string }) {
   if (jobs.length === 0) {
-    return <p className="px-3 py-2 text-xs text-brand-ink-muted">{emptyLabel}</p>;
+    return <p className="px-3 py-2 text-xs text-sidebar-ink-muted">{emptyLabel}</p>;
   }
   return (
     <ul className="space-y-0.5">
@@ -78,9 +75,12 @@ function JobLinks({ jobs, emptyLabel }: { jobs: SidebarJob[]; emptyLabel: string
             <NavLink href={`/manager/jobs/${job.id}`} variant="navy">
               <span
                 aria-hidden
-                className={cn("size-1.5 shrink-0 rounded-full", DOT_CLASS[tone])}
+                className={cn(
+                  "mt-1.5 size-1.5 shrink-0 self-start rounded-full",
+                  DOT_CLASS[tone],
+                )}
               />
-              <span className="truncate">{job.title}</span>
+              <span className="break-words">{job.title}</span>
             </NavLink>
           </li>
         );
@@ -102,7 +102,7 @@ function Section({
 }) {
   return (
     <details open={open} className="group">
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm text-brand-ink-muted transition-colors hover:text-brand-ink [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-medium tracking-wide uppercase text-sidebar-ink-muted transition-colors hover:text-sidebar-ink [&::-webkit-details-marker]:hidden">
         {icon}
         <span className="flex-1">{label}</span>
         <Icon
@@ -117,11 +117,12 @@ function Section({
 
 type SidebarJob = { id: number; title: string; status: string };
 
-/** The navy sidebar's contents — suspended, since it needs the API. */
+/** The rail's contents — suspended, since it needs the API. */
 export async function ManagerSidebar() {
   const [dashboard, jobs] = await Promise.all([
     api.managerDashboard(),
-    api.managerJobs(),
+    // The rail is a shortcut list, not the full index.
+    api.managerJobs("?limit=25"),
   ]);
 
   const user = dashboard.ok ? dashboard.data.user : null;
@@ -135,45 +136,66 @@ export async function ManagerSidebar() {
 
   return (
     <>
-      <div className="flex items-center gap-3 px-4 py-5">
-        <LogoMark href="/manager" className="size-8" />
-        <span className="min-w-0">
-          <span className="block truncate text-sm font-medium text-white">
-            {user?.name ?? "Hiring manager"}
-          </span>
-          <span className="block text-xs text-brand-ink-muted">Hiring manager</span>
+      {/* The frame leads with the manager, not the logo: the masthead
+          already carries the brand, and this rail is their workspace. */}
+      <Link
+        href="/manager"
+        className="flex items-center gap-3 px-4 py-5 transition-opacity hover:opacity-90"
+      >
+        <span
+          aria-hidden
+          className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-500 text-sm font-semibold text-white"
+        >
+          {user?.initials ?? "HM"}
         </span>
-      </div>
+        <span className="min-w-0 truncate text-[13px] font-semibold text-white">
+          {user?.name ?? "Hiring manager"}
+        </span>
+      </Link>
 
       <div className="space-y-2 px-3">
         <Link
           href="/manager/jobs/new"
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-700 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-800"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-sidebar-accent px-3 py-2 text-[13px] font-medium text-white transition-colors hover:bg-sidebar-accent-hover"
         >
           <Icon name="plus" />
           New Job
         </Link>
-        <NavLink href="/manager/jobs" variant="navy" exact className="justify-center">
+        <Link
+          href="/manager/jobs"
+          className="flex w-full items-center justify-center rounded-lg bg-sidebar-surface px-3 py-2 text-[13px] font-medium text-sidebar-ink transition-colors hover:bg-sidebar-surface-hover"
+        >
           View all jobs
-        </NavLink>
+        </Link>
       </div>
 
       <div className="mt-3 flex-1 overflow-y-auto px-1">
         <Section label="Open Jobs">
-          <div className="px-2 pb-2">
-            <label className="relative block">
+          {/* A real form. It had no form around it and no name, so typing
+              in it and pressing Enter did nothing at all. */}
+          <form action="/manager/jobs" className="flex items-center gap-1.5 px-2 pb-2">
+            <label className="relative block min-w-0 flex-1">
               <span className="sr-only">Search jobs</span>
               <Icon
                 name="search"
-                className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-brand-ink-muted"
+                className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-sidebar-ink-muted"
               />
               <input
                 type="search"
+                name="search"
                 placeholder="Search jobs"
-                className="w-full rounded-md bg-brand-800 py-1.5 pl-8 pr-2 text-xs text-brand-ink placeholder:text-brand-ink-muted focus:outline-none focus:ring-1 focus:ring-brand-700"
+                className="w-full rounded-md bg-sidebar-hover py-1.5 pl-8 pr-2 text-xs text-sidebar-ink placeholder:text-sidebar-ink-muted focus:outline-none focus:ring-1 focus:ring-sidebar-accent"
               />
             </label>
-          </div>
+            <Link
+              href="/manager/jobs"
+              title="Filter all jobs"
+              className="shrink-0 rounded-md bg-sidebar-hover p-1.5 text-sidebar-ink-muted transition-colors hover:text-sidebar-ink"
+            >
+              <Icon name="filter" className="size-3.5" />
+              <span className="sr-only">Filter all jobs</span>
+            </Link>
+          </form>
           <div className="px-2">
             <JobLinks
               jobs={all.filter((job) => job.status !== "closed")}
@@ -196,8 +218,8 @@ export async function ManagerSidebar() {
         </Section>
       </div>
 
-      <div className="border-t border-brand-700 p-3">
-        <LogoutButton className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-brand-ink-muted transition-colors hover:bg-brand-800 hover:text-brand-ink" />
+      <div className="border-t border-sidebar-line p-3">
+        <LogoutButton className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-sidebar-ink-muted transition-colors hover:bg-sidebar-hover hover:text-sidebar-ink" />
       </div>
     </>
   );
@@ -206,12 +228,12 @@ export async function ManagerSidebar() {
 export function ManagerSidebarSkeleton() {
   return (
     <div aria-hidden className="animate-pulse space-y-3 p-4">
-      <div className="h-8 w-40 rounded-full bg-brand-800" />
-      <div className="h-9 rounded-lg bg-brand-800" />
-      <div className="h-9 rounded-lg bg-brand-800" />
+      <div className="h-8 w-40 rounded-full bg-sidebar-hover" />
+      <div className="h-9 rounded-lg bg-sidebar-hover" />
+      <div className="h-9 rounded-lg bg-sidebar-hover" />
       <div className="mt-6 space-y-2">
         {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="h-7 rounded-md bg-brand-800" />
+          <div key={i} className="h-7 rounded-md bg-sidebar-hover" />
         ))}
       </div>
     </div>

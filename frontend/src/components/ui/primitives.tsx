@@ -6,6 +6,7 @@
  * dropdown of the same status never drift apart.
  */
 
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 export function cn(...parts: Array<string | false | null | undefined>) {
@@ -163,6 +164,8 @@ type ButtonProps = {
   className?: string;
   href?: string;
   disabled?: boolean;
+  /** Omit for a plain button; a button with both `href` and `onClick` navigates. */
+  onClick?: () => void;
 };
 
 /**
@@ -172,8 +175,8 @@ type ButtonProps = {
  * panel still looks disabled.
  */
 const VARIANTS: Record<NonNullable<ButtonProps["variant"]>, string> = {
-  primary: "bg-brand-700 text-white hover:bg-brand-800",
-  secondary: "bg-brand-500 text-white hover:bg-brand-600",
+  primary: "bg-brand-700 text-brand-ink hover:bg-brand-800",
+  secondary: "bg-brand-500 text-brand-ink hover:bg-brand-600",
   tertiary: "bg-brand-400 text-white hover:bg-brand-500",
   outline: "border border-line bg-card text-ink hover:border-line-strong",
   ghost: "text-brand-700 hover:bg-brand-50",
@@ -195,6 +198,7 @@ export function Button({
   className,
   href,
   disabled,
+  onClick,
 }: ButtonProps) {
   const solid = variant === "primary" || variant === "secondary" || variant === "tertiary";
 
@@ -217,7 +221,12 @@ export function Button({
     );
   }
   return (
-    <button type="button" className={classes} disabled={disabled}>
+    <button
+      type="button"
+      className={classes}
+      disabled={disabled}
+      onClick={onClick}
+    >
       {children}
     </button>
   );
@@ -240,23 +249,67 @@ export function Card({
 }
 
 /** Large info card: a number, a title and supporting text. */
+/** The tinted icon squares the manager overview uses. */
+const STAT_TONES: Record<string, string> = {
+  green: "bg-status-green-bg text-status-green",
+  teal: "bg-brand-100 text-brand-700",
+  info: "bg-status-info-bg text-status-info",
+  yellow: "bg-status-yellow-bg text-status-yellow",
+  purple: "bg-status-purple-bg text-status-purple",
+};
+
 export function StatCard({
   value,
   title,
   supporting,
+  href,
+  icon,
+  tone = "teal",
 }: {
   value: number | string;
   title: string;
   supporting?: string;
+  /** Where the number comes from. A count nobody can act on is decoration. */
+  href?: string;
+  /** A tinted square on the left, as the manager overview has it. */
+  icon?: ReactNode;
+  tone?: keyof typeof STAT_TONES | string;
 }) {
-  return (
-    <Card className="p-5">
+  const text = (
+    <>
       <p className="text-3xl font-semibold tracking-tight text-ink-strong">{value}</p>
       <p className="mt-2 text-sm font-medium text-ink">{title}</p>
       {supporting ? (
         <p className="mt-0.5 text-xs text-ink-subtle">{supporting}</p>
       ) : null}
-    </Card>
+    </>
+  );
+
+  const body = icon ? (
+    <div className="flex items-start gap-3">
+      <span
+        aria-hidden
+        className={cn(
+          "grid size-10 shrink-0 place-items-center rounded-xl",
+          STAT_TONES[tone] ?? STAT_TONES.teal,
+        )}
+      >
+        {icon}
+      </span>
+      <div className="min-w-0">{text}</div>
+    </div>
+  ) : (
+    text
+  );
+
+  if (!href) return <Card className="p-5">{body}</Card>;
+
+  return (
+    <Link href={href} className="group block">
+      <Card className="h-full p-5 transition-colors group-hover:border-line-strong group-hover:bg-card-muted">
+        {body}
+      </Card>
+    </Link>
   );
 }
 

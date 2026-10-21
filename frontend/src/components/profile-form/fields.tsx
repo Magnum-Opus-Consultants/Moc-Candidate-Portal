@@ -3,11 +3,18 @@
 /**
  * Form controls for the profile creation flow.
  *
- * Deliberately plain: every control is a labelled native input or select, so
- * the browser handles validation, keyboard and autofill, and a required field
- * reads as required to a screen reader rather than only showing a red
- * asterisk.
+ * Inputs stay native, so the browser handles validation, keyboard and
+ * autofill, and a required field reads as required to a screen reader rather
+ * than only showing a red asterisk.
+ *
+ * Dropdowns do not. A native <select> draws its list with the operating
+ * system's own styling - a square white box with a blue highlight that
+ * ignores the brand entirely and cannot be reached from CSS. `Select` is
+ * therefore a listbox built here: same props, same keyboard behaviour, and a
+ * search box once the list is long enough that scrolling it is a chore.
  */
+
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/components/ui/primitives";
@@ -76,6 +83,9 @@ export function Field({
   );
 }
 
+/** Past this many options, typing finds one faster than scrolling. */
+const SEARCH_FROM = 12;
+
 export function Select({
   label,
   required,
@@ -84,6 +94,8 @@ export function Select({
   options,
   placeholder,
   id,
+  hideLabel,
+  className,
 }: {
   label: string;
   required?: boolean;
@@ -92,28 +104,265 @@ export function Select({
   options: Option[];
   placeholder?: string;
   id?: string;
+  /**
+   * Drop the visible label, for a dropdown that sits inside a labelled row
+   * (the currency beside a salary). The label still names the control to a
+   * screen reader.
+   */
+  hideLabel?: boolean;
+  /** Width and spacing for those inline cases. */
+  className?: string;
 }) {
+  const generated = useId();
   const fieldId = id ?? label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const listId = `${generated}-list`;
+
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  const [query, setQuery] = useState("");
+
+  const box = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const search = useRef<HTMLInputElement>(null);
+  const list = useRef<HTMLUListElement>(null);
+
+  const searchable = options.length >= SEARCH_FROM;
+
+  const shown = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    if (!term) return options;
+    return options.filter((o) => o.label.toLowerCase().includes(term));
+  }, [options, query]);
+
+  const selected = options.find((o) => o.value === value) ?? null;
+
+  // Opening and closing set their own state in the handler rather than in an
+  // effect reacting to `open`: an effect that calls setState runs a second
+  // render for no reason, and React now warns about it.
+  function openMenu() {
+    // Start on the current choice, so Enter without moving leaves the value
+    // alone instead of silently changing it.
+    setActive(options.findIndex((o) => o.value === value));
+    setQuery("");
+    setOpen(true);
+  }
+
+  function closeMenu({ refocus = true } = {}) {
+    setOpen(false);
+    setQuery("");
+    if (refocus) button.current?.focus();
+  }
+
+  // Focus the search box once the menu is on screen. No state is set here,
+  // so this stays an effect.
+  useEffect(() => {
+    if (open && searchable) search.current?.focus();
+  }, [open, searchable]);
+
+  // Keep the highlighted row in view when arrowing through a long list.
+  useEffect(() => {
+    if (!open || active < 0) return;
+    list.current?.children[active]?.scrollIntoView({ block: "nearest" });
+  }, [open, active]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: PointerEvent) {
+      // Clicking away must not drag focus back to the button, or the page
+      // jumps to a field the reader has just left.
+      if (!box.current?.contains(event.target as Node)) {
+        setOpen(false);
+        setQuery("");
+      }
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
+  function choose(option: Option) {
+    onChange(option.value);
+    closeMenu();
+  }
+
+  function clear() {
+    onChange("");
+    closeMenu();
+  }
+
+  function onKeyDown(event: React.KeyboardEvent) {
+    if (event.key === "Escape") {
+      closeMenu();
+      return;
+    }
+
+    if (!open) {
+      if (["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) {
+        event.preventDefault();
+        openMenu();
+      }
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActive((i) => (i + 1) % Math.max(shown.length, 1));
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActive((i) => (i <= 0 ? shown.length - 1 : i - 1));
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      setActive(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      setActive(shown.length - 1);
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      if (shown[active]) choose(shown[active]);
+    } else if (event.key === "Tab") {
+      closeMenu({ refocus: false });
+    }
+  }
+
   return (
-    <div>
-      <Label htmlFor={fieldId} required={required}>
-        {label}
-      </Label>
-      <select
+    <div ref={box} className={cn("relative", className)}>
+      {hideLabel ? null : (
+        <Label htmlFor={fieldId} required={required}>
+          {label}
+        </Label>
+      )}
+
+      <button
+        ref={button}
         id={fieldId}
-        value={value}
-        required={required}
-        onChange={(e) => onChange(e.target.value)}
-        className={cn(CONTROL, !value && "text-ink-subtle")}
+        type="button"
+        role="combobox"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        aria-label={hideLabel ? label : undefined}
+        onClick={() => (open ? closeMenu({ refocus: false }) : openMenu())}
+        onKeyDown={onKeyDown}
+        className={cn(
+          CONTROL,
+          "flex items-center justify-between gap-2 text-left",
+          hideLabel && "mt-0",
+          open && "border-brand-500 ring-2 ring-brand-100",
+          !selected && "text-ink-subtle",
+        )}
       >
-        <option value="">{placeholder ?? label}</option>
-        {options.map((o) => (
-          <option key={o.value} value={o.value} className="text-ink">
-            {o.label}
-          </option>
-        ))}
-      </select>
+        <span className="truncate">
+          {selected ? selected.label : (placeholder ?? label)}
+        </span>
+        <Icon
+          name="chevron-down"
+          className={cn(
+            "size-4 shrink-0 text-ink-subtle transition-transform",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+
+      {open ? (
+        <div className="absolute left-0 right-0 top-full z-40 mt-1.5 overflow-hidden rounded-xl border border-line bg-card shadow-lg">
+          {searchable ? (
+            <div className="border-b border-line p-2">
+              <input
+                ref={search}
+                type="text"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setActive(0);
+                }}
+                onKeyDown={onKeyDown}
+                placeholder={`Search ${label.toLowerCase()}`}
+                aria-label={`Search ${label.toLowerCase()}`}
+                className="w-full rounded-lg border border-line bg-card px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-subtle focus:border-brand-500 focus:outline-none"
+              />
+            </div>
+          ) : null}
+
+          <ul
+            ref={list}
+            id={listId}
+            role="listbox"
+            aria-label={label}
+            className="max-h-64 overflow-y-auto p-1.5"
+          >
+            {/* Clearing the field is a real choice when it is optional. */}
+            {!required && !query ? (
+              <li>
+                <Choice
+                  label={placeholder ?? label}
+                  muted
+                  selected={!value}
+                  active={active === -1}
+                  onPick={clear}
+                />
+              </li>
+            ) : null}
+
+            {shown.map((option, index) => (
+              <li key={option.value}>
+                <Choice
+                  label={option.label}
+                  selected={option.value === value}
+                  active={index === active}
+                  onHover={() => setActive(index)}
+                  onPick={() => choose(option)}
+                />
+              </li>
+            ))}
+
+            {shown.length === 0 ? (
+              <li className="px-2.5 py-3 text-center text-sm text-ink-subtle">
+                Nothing matches that search
+              </li>
+            ) : null}
+          </ul>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function Choice({
+  label,
+  selected,
+  active,
+  muted,
+  onHover,
+  onPick,
+}: {
+  label: string;
+  selected: boolean;
+  active: boolean;
+  muted?: boolean;
+  onHover?: () => void;
+  onPick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="option"
+      aria-selected={selected}
+      onMouseEnter={onHover}
+      onClick={onPick}
+      className={cn(
+        "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors",
+        active ? "bg-brand-50" : "hover:bg-card-muted",
+        selected
+          ? "font-medium text-brand-700"
+          : muted
+            ? "text-ink-subtle"
+            : "text-ink",
+      )}
+    >
+      <span className="flex-1 truncate">{label}</span>
+      {selected ? (
+        <Icon name="check" className="size-4 shrink-0 text-brand-700" />
+      ) : null}
+    </button>
   );
 }
 
@@ -262,7 +511,9 @@ export function Section({
       id={id}
       className="scroll-mt-24 rounded-2xl border border-line bg-card p-6"
     >
-      <h2 className="text-lg font-semibold text-ink-strong">{title}</h2>
+      <h2 className="border-b border-line pb-4 text-lg font-semibold text-ink-strong">
+        {title}
+      </h2>
       <div className="mt-5 space-y-5">{children}</div>
     </section>
   );
@@ -287,7 +538,7 @@ export function AddButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="shrink-0 rounded-lg bg-brand-700 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-800 disabled:bg-brand-100 disabled:text-brand-300"
+      className="shrink-0 rounded-lg bg-brand-700 px-5 py-2.5 text-sm font-medium text-brand-ink transition-colors hover:bg-brand-800 disabled:bg-brand-100 disabled:text-brand-300"
     >
       {children}
     </button>

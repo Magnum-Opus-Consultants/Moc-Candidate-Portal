@@ -34,7 +34,7 @@ export function StageTracker({ application }: { application: Application }) {
                     reached
                       ? is_closed
                         ? "border-ink-subtle bg-ink-subtle text-white"
-                        : "border-brand-700 bg-brand-700 text-white"
+                        : "border-brand-700 bg-brand-700 text-brand-ink"
                       : "border-line bg-card",
                     current && "ring-4 ring-brand-100",
                   )}

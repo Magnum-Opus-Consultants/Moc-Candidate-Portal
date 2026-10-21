@@ -1,0 +1,29 @@
+# The Next.js front end behind nginx.
+#
+# `next start`, not `next dev`: the dev server recompiles per request and
+# must never serve real traffic.
+
+[Unit]
+Description=MOC Candidate Portal — Next.js
+After=network.target moc-portal-api.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/srv/moc-portal/frontend
+Environment=NODE_ENV=production
+Environment=PORT=3001
+Environment=HOSTNAME=127.0.0.1
+ExecStart=/usr/bin/npm run start -- --port 3001
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/moc-portal/frontend/.next
+
+[Install]
+WantedBy=multi-user.target

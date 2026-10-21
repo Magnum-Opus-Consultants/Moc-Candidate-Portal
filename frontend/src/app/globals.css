@@ -37,8 +37,32 @@
   --brand-800: #053e5c;
   --brand-900: #04304a;
 
+  /* The manager rail, sampled from the approved frame. Near-black with a
+     blue cast, not the brand navy — and fixed in both themes, because
+     brand-900 inverts for dark mode, which turned the rail near-white. */
+  --sidebar: #09151c;
+  --sidebar-hover: #1e2532;
+  --sidebar-line: #1b272e;
+  /* Fixed like the rail itself: --brand-ink flips dark for dark
+     mode, which on a rail that never changes is 1.22:1.
+     15.3:1 and 6.3:1 on the rail. */
+  --sidebar-ink: #e8eaed;
+  --sidebar-ink-muted: #92989d;
+  /* The rail's own two buttons, which are not the page's brand blue:
+     a muted teal for New Job and a slate for View all jobs. */
+  --sidebar-accent: #5d9cb1;
+  --sidebar-accent-hover: #6fa9bd;
+  --sidebar-surface: #384150;
+  --sidebar-surface-hover: #434d5d;
   --brand-ink: #e9f1f5;
   --brand-ink-muted: #9fbccb;
+
+  /*
+   * The neutral band behind the profile-completion prompt. The design's grey
+   * is a touch lighter; this is the lightest that still clears 4.5:1 with the
+   * white text on it.
+   */
+  --band: #6b7280;
 
   /* Status */
   --green: #15803d;
@@ -66,8 +90,9 @@
     --canvas: #0b1620;
     --card: #11212c;
     --card-muted: #162936;
-    --line: #1f3543;
-    --line-strong: #2d4859;
+    /* 1.29:1 and 1.71:1 against the card before — invisible. */
+    --line: #304c5f;
+    --line-strong: #44677d;
 
     --ink: #e4edf2;
     --ink-strong: #f2f7fa;
@@ -82,8 +107,13 @@
     --brand-500: #6fadc2;
     --brand-600: #8bb7c4;
     --brand-700: #a7cbd7;
+    /* The ramp inverts in dark mode, so text on a brand fill must too:
+       white on #a7cbd7 is 1.73:1. */
+  --brand-ink: #08202c;
     --brand-800: #c3dde5;
     --brand-900: #dcebf0;
+
+    --band: #233442;
 
     --green: #4ade80;
     --green-bg: #0f3523;
@@ -106,8 +136,8 @@
   --canvas: #0b1620;
   --card: #11212c;
   --card-muted: #162936;
-  --line: #1f3543;
-  --line-strong: #2d4859;
+  --line: #304c5f;
+  --line-strong: #44677d;
 
   --ink: #e4edf2;
   --ink-strong: #f2f7fa;
@@ -122,8 +152,13 @@
   --brand-500: #6fadc2;
   --brand-600: #8bb7c4;
   --brand-700: #a7cbd7;
+    /* The ramp inverts in dark mode, so text on a brand fill must too:
+       white on #a7cbd7 is 1.73:1. */
+  --brand-ink: #08202c;
   --brand-800: #c3dde5;
   --brand-900: #dcebf0;
+
+  --band: #233442;
 
   --green: #4ade80;
   --green-bg: #0f3523;
@@ -163,8 +198,19 @@
   --color-brand-700: var(--brand-700);
   --color-brand-800: var(--brand-800);
   --color-brand-900: var(--brand-900);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-hover: var(--sidebar-hover);
+  --color-sidebar-line: var(--sidebar-line);
+  --color-sidebar-ink: var(--sidebar-ink);
+  --color-sidebar-ink-muted: var(--sidebar-ink-muted);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-hover: var(--sidebar-accent-hover);
+  --color-sidebar-surface: var(--sidebar-surface);
+  --color-sidebar-surface-hover: var(--sidebar-surface-hover);
   --color-brand-ink: var(--brand-ink);
   --color-brand-ink-muted: var(--brand-ink-muted);
+
+  --color-band: var(--band);
 
   --color-status-green: var(--green);
   --color-status-green-bg: var(--green-bg);

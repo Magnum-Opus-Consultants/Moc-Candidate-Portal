@@ -1,18 +1,34 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { Suspense } from "react";
 
+import { FilterRail } from "@/components/filter-rail";
 import {
-  FilterRail,
+  ActiveFilters,
+  FILTER_GROUPS,
+  selectedIn,
+  toggleParam,
   JobDetailPane,
   JobResultCard,
   withParam,
   type Params,
 } from "@/components/job-board";
-import { Logo, LogoMark } from "@/components/logo";
+import { LogoMark } from "@/components/logo";
+import {
+  Hero,
+  RoleCategories,
+  SiteHeader,
+} from "@/components/landing";
 import { BackendOffline, CardSkeleton } from "@/components/states";
-import { Icon } from "@/components/ui/icon";
 import { Button, cn } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
+
+/*
+ * Evaluated once when the module loads at build time rather than per
+ * render: calling new Date() during a render is unstable and blocks
+ * prerendering.
+ */
+const COPYRIGHT_YEAR = new Date().getFullYear();
 
 /**
  * The public job board.
@@ -22,38 +38,23 @@ import { api } from "@/lib/api";
  */
 export default function Home({ searchParams }: PageProps<"/">) {
   return (
-    <div className="flex min-h-dvh flex-col">
-      <div className="bg-card">
-        <SiteHeader />
-      </div>
+    <div className="flex min-h-dvh flex-col bg-canvas">
+      <Suspense fallback={<HeaderSkeleton />}>
+        <Masthead />
+      </Suspense>
 
-      {/*
-        A deep petrol-blue hero carries the MOC brand: a short promise sits
-        above the search pill, which lifts off the brand gradient the way a
-        job board's does. brand-ink / the gradient hold in both themes.
-      */}
-      <div className="relative isolate overflow-hidden bg-gradient-brand">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -right-[10%] -top-[140%] -z-0 h-[280%] w-[60%] rounded-[50%] bg-white/5"
-        />
+      <Suspense fallback={<HeroSkeleton />}>
+        <HeroBand searchParams={searchParams} />
+      </Suspense>
 
-        <div className="relative mx-auto max-w-[1320px] px-4 pt-10 text-center sm:pt-12">
-          <h1 className="text-2xl font-semibold tracking-tight text-brand-ink sm:text-[2rem]">
-            World-class South African talent, global impact
-          </h1>
-          <p className="mx-auto mt-2 max-w-xl text-sm text-brand-ink-muted sm:text-[15px]">
-            Browse open roles at Magnum Opus Consultants and apply with a single
-            MOC profile — no account needed to look.
-          </p>
-        </div>
+      <Suspense fallback={<CategoriesSkeleton />}>
+        <Categories searchParams={searchParams} />
+      </Suspense>
 
-        <Suspense fallback={<SearchSkeleton />}>
-          <SearchBar searchParams={searchParams} />
-        </Suspense>
-      </div>
-
-      <main className="mx-auto w-full max-w-[1320px] flex-1 px-4 pb-10">
+      <main
+        id="results"
+        className="mx-auto w-full max-w-[1600px] flex-1 scroll-mt-4 px-5 pb-12"
+      >
         <Suspense fallback={<ResultsSkeleton />}>
           <Results searchParams={searchParams} />
         </Suspense>
@@ -64,102 +65,62 @@ export default function Home({ searchParams }: PageProps<"/">) {
   );
 }
 
-/*
- * Evaluated once when the module loads at build time rather than per render:
- * calling new Date() during a render is unstable and blocks prerendering.
- */
-const COPYRIGHT_YEAR = new Date().getFullYear();
-
-/* --- Chrome ---------------------------------------------------------------- */
-
-function SiteHeader() {
-  return (
-    <header className="relative">
-      <div className="mx-auto flex h-16 max-w-[1320px] items-center gap-8 px-4">
-        <Logo href="/" className="h-8" />
-
-        <nav className="hidden items-center gap-1 md:flex">
-          <Link
-            href="/"
-            aria-current="page"
-            className="border-b-2 border-brand-700 px-2 pb-1 pt-1.5 text-sm font-medium text-ink-strong"
-          >
-            Find jobs
-          </Link>
-          <a
-            href="https://moc-pty.com"
-            className="rounded-lg px-3 py-2 text-sm text-ink-muted transition-colors hover:text-ink-strong"
-          >
-            About MOC
-          </a>
-          <a
-            href="https://moc-pty.com"
-            className="rounded-lg px-3 py-2 text-sm text-ink-muted transition-colors hover:text-ink-strong"
-          >
-            FAQs
-          </a>
-        </nav>
-
-        <div className="ml-auto flex items-center gap-1">
-          <Button href="/signin" size="sm">
-            Sign in
-          </Button>
-        </div>
-      </div>
-    </header>
-  );
+/** The masthead needs to know whether anyone is signed in. */
+async function Masthead() {
+  const me = await api.me();
+  return <SiteHeader user={me.ok ? me.data : null} />;
 }
 
-/** The what/where search, as one pill. */
-async function SearchBar({
+async function HeroBand({
   searchParams,
 }: {
   searchParams: PageProps<"/">["searchParams"];
 }) {
   const params = (await searchParams) as Params;
+  return <Hero params={params} />;
+}
 
+async function Categories({
+  searchParams,
+}: {
+  searchParams: PageProps<"/">["searchParams"];
+}) {
+  const [params, result] = await Promise.all([
+    searchParams as Promise<Params>,
+    api.jobCategories(),
+  ]);
+  if (!result.ok) return null;
+  return <RoleCategories categories={result.data.results} params={params} />;
+}
+
+function HeaderSkeleton() {
+  return <div className="h-16 border-b border-line bg-card" />;
+}
+
+function HeroSkeleton() {
   return (
-    <div className="relative px-4 pb-10 pt-6">
-      <form
-        action="/"
-        className="mx-auto flex max-w-3xl flex-col gap-1 rounded-2xl border border-line-strong bg-card p-2 shadow-[0_2px_12px_rgba(5,75,112,0.10)] sm:flex-row sm:items-center sm:rounded-full"
-      >
-        {/*
-          One field, not the usual what/where pair: these are MOC's own and
-          offshored roles, so the town a posting is filed under is not how
-          anyone searches. Work setup covers what actually varies, and it is
-          a filter.
-        */}
-        <label className="flex flex-1 items-center gap-2.5 px-4">
-          <Icon name="search" className="size-5 shrink-0 text-ink-muted" />
-          <span className="sr-only">Job title, skill or company</span>
-          <input
-            type="search"
-            name="q"
-            defaultValue={params.q ?? ""}
-            placeholder="Job title, skill or company"
-            className="w-full bg-transparent py-2.5 text-[15px] text-ink placeholder:text-ink-muted focus:outline-none"
-          />
-        </label>
-
-        {/* Keep any active filters when the search is re-submitted. */}
-        {(["employment_type", "work_setup", "experience_level"] as const).map(
-          (key) =>
-            params[key] ? (
-              <input key={key} type="hidden" name={key} value={params[key]} />
-            ) : null,
-        )}
-
-        <button
-          type="submit"
-          className="shrink-0 rounded-full bg-brand-700 px-7 py-3 text-[15px] font-semibold text-white transition-colors hover:bg-brand-800"
-        >
-          Find jobs
-        </button>
-      </form>
+    <div className="border-b border-line bg-card">
+      <div className="mx-auto max-w-[1600px] px-5 py-14">
+        <div className="mx-auto h-9 w-80 max-w-full animate-pulse rounded bg-card-muted" />
+        <div className="mx-auto mt-8 h-12 max-w-[620px] animate-pulse rounded-lg bg-card-muted" />
+      </div>
     </div>
   );
 }
+
+function CategoriesSkeleton() {
+  return (
+    <div className="mx-auto w-full max-w-[1600px] px-5 py-10">
+      <div className="h-6 w-40 animate-pulse rounded bg-card-muted" />
+      <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="h-[72px] animate-pulse rounded-xl bg-card" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 
 function SiteFooter() {
   return (
@@ -281,21 +242,38 @@ async function Results({
 }: {
   searchParams: PageProps<"/">["searchParams"];
 }) {
+  // Relative dates ('3 days ago') are true only at the moment they are
+  // rendered, so this subtree is request-time rather than prerendered.
+  await connection();
   const params = (await searchParams) as Params;
 
   const query = new URLSearchParams();
   if (params.q) query.set("search", params.q);
+  // The category cards link with ?category=; the API calls it role_category.
+  if (params.category) query.set("role_category", params.category);
   for (const key of ["employment_type", "work_setup", "experience_level"]) {
     if (params[key]) query.set(key, params[key]!);
   }
-  if (params.sort === "date") query.set("sort", "newest");
+  if (params.sort) query.set("sort", params.sort);
+  // "Show more" grows the page rather than stepping through pages, so the
+  // results already read stay on screen.
+  if (params.show) query.set("limit", params.show);
 
   const qs = query.toString();
-  const result = await api.jobs(qs ? `?${qs}` : "");
+  // The saved list comes back 401 for a visitor who is not signed in, which
+  // is simply an empty set — the board is public.
+  const [result, savedResult] = await Promise.all([
+    api.jobs(qs ? `?${qs}` : ""),
+    api.candidateSaved(),
+  ]);
 
   if (!result.ok) return <BackendOffline error={result.error} />;
 
-  const jobs = result.data.results;
+  const savedIds = new Set(
+    savedResult.ok ? savedResult.data.results.map((job) => job.id) : [],
+  );
+
+  const { results: jobs, count, has_more: hasMore, limit } = result.data;
   // Default to the first result so the detail pane is never empty on load.
   const selected =
     jobs.find((job) => String(job.id) === params.job) ?? jobs[0] ?? null;
@@ -304,6 +282,7 @@ async function Results({
   // default "Jobs for you" to a result count.
   const searched = Boolean(
     params.q ||
+      params.category ||
       params.employment_type ||
       params.work_setup ||
       params.experience_level,
@@ -311,17 +290,44 @@ async function Results({
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-3 py-4">
-        <FilterRail params={params} />
+      <div className="space-y-3 py-4">
+        <FilterRail
+          groups={FILTER_GROUPS}
+          selected={Object.fromEntries(
+            FILTER_GROUPS.map((g) => [g.key, selectedIn(params, g.key)]),
+          )}
+          facets={result.data.facets}
+          hrefs={Object.fromEntries(
+            FILTER_GROUPS.map((g) => [
+              g.key,
+              Object.fromEntries(
+                g.options.map(([value]) => [
+                  value,
+                  toggleParam(params, g.key, value),
+                ]),
+              ),
+            ]),
+          )}
+          clearHref={withParam(
+            Object.fromEntries(
+              Object.entries(params).filter(
+                ([k]) => !FILTER_GROUPS.some((g) => g.key === k),
+              ),
+            ),
+            "_",
+          )}
+        />
+        <ActiveFilters params={params} />
       </div>
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,460px)_1fr]">
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
         <div>
           <div className="flex flex-wrap items-baseline justify-between gap-2 pb-3">
             <h1 className="text-xl font-semibold tracking-tight text-ink-strong">
               {searched ? (
                 <>
-                  {jobs.length} {jobs.length === 1 ? "job" : "jobs"}
+                  {count.toLocaleString("en-ZA")}{" "}
+                  {count === 1 ? "job" : "jobs"}
                   {params.q ? ` for ${params.q}` : ""}
                 </>
               ) : (
@@ -334,7 +340,8 @@ async function Results({
               {(
                 [
                   ["relevance", "Relevance"],
-                  ["date", "Date"],
+                  ["newest", "Newest"],
+                  ["oldest", "Oldest"],
                 ] as const
               ).map(([value, label]) => (
                 <Link
@@ -344,6 +351,7 @@ async function Results({
                     "sort",
                     value === "relevance" ? undefined : value,
                   )}
+                  scroll={false}
                   className={cn(
                     "rounded px-2 py-1 transition-colors",
                     (params.sort ?? "relevance") === value
@@ -383,17 +391,33 @@ async function Results({
                     job={job}
                     params={params}
                     selected={selected?.id === job.id}
+                    saved={savedIds.has(job.id)}
                   />
                 </li>
               ))}
             </ol>
           )}
+
+          {hasMore ? (
+            <div className="mt-4 text-center">
+              <Link
+                href={withParam(params, "show", String(limit + 20))}
+                scroll={false}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:border-line-strong hover:bg-card-muted"
+              >
+                Show more
+                <span className="text-ink-subtle">
+                  ({(count - jobs.length).toLocaleString("en-ZA")} more)
+                </span>
+              </Link>
+            </div>
+          ) : null}
         </div>
 
         {selected ? (
           <div
             id="detail"
-            className="sticky top-4 max-h-[calc(100dvh-2rem)] scroll-mt-4 overflow-hidden rounded-xl border border-line bg-card shadow-sm"
+            className="sticky top-4 flex max-h-[calc(100dvh-2rem)] scroll-mt-4 flex-col overflow-hidden rounded-xl border border-line bg-card shadow-sm"
           >
             <JobDetailPane job={selected} />
           </div>
@@ -405,14 +429,6 @@ async function Results({
 
 /* --- Loading --------------------------------------------------------------- */
 
-function SearchSkeleton() {
-  return (
-    <div className="relative px-4 pb-10 pt-6">
-      <div className="mx-auto h-[68px] max-w-3xl animate-pulse rounded-full border border-line bg-card-muted" />
-    </div>
-  );
-}
-
 function ResultsSkeleton() {
   return (
     <>
@@ -421,7 +437,7 @@ function ResultsSkeleton() {
           <CardSkeleton key={i} className="h-9 w-32 rounded-full" />
         ))}
       </div>
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,460px)_1fr]">
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
         <div className="space-y-3">
           {[0, 1, 2, 3].map((i) => (
             <CardSkeleton key={i} className="h-52 rounded-xl" />

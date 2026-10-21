@@ -1,23 +1,18 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { Suspense } from "react";
 
-import {
-  SentWithApplication,
-  StageHistory,
-  StageTracker,
-} from "@/components/application-stage";
+import { StageHistory } from "@/components/application-stage";
 import { BackendOffline, PageSkeleton } from "@/components/states";
-import { Icon } from "@/components/ui/icon";
 import {
   APPLICATION_STATUS_TONE,
   Button,
   Card,
   PageHeading,
-  StatCard,
   StatusBadge,
   cn,
 } from "@/components/ui/primitives";
-import { api, formatDate, relativeDays, type Application } from "@/lib/api";
+import { api, formatDate, type Application } from "@/lib/api";
 
 /**
  * The job seeker's applications.
@@ -37,6 +32,9 @@ export default function ApplicationsPage({
   );
 }
 
+/** How many rows a page shows before "Show more". */
+const PAGE = 15;
+
 const TABS: Array<{ key: string; label: string }> = [
   { key: "active", label: "In progress" },
   { key: "shortlisted", label: "Shortlisted" },
@@ -51,15 +49,22 @@ async function Applications({
 }: {
   searchParams: PageProps<"/portal/applications">["searchParams"];
 }) {
+  // Relative dates ('3 days ago') are true only at the moment they are
+  // rendered, so this subtree is request-time rather than prerendered.
+  await connection();
   const params = (await searchParams) as Record<string, string | undefined>;
   const active = params.status ?? "active";
 
-  const result = await api.candidateApplications(
-    active === "all" ? "" : `?status=${active}`,
-  );
+  // "Show more" grows the page rather than stepping through it, so rows
+  // already read stay on screen.
+  const limit = Math.min(Number(params.show ?? PAGE) || PAGE, 100);
+  const query = new URLSearchParams({ limit: String(limit) });
+  if (active !== "all") query.set("status", active);
+
+  const result = await api.candidateApplications(`?${query.toString()}`);
   if (!result.ok) return <BackendOffline error={result.error} />;
 
-  const { results, counts } = result.data;
+  const { results, counts, count, has_more: hasMore } = result.data;
 
   return (
     <div className="space-y-6">
@@ -73,30 +78,14 @@ async function Applications({
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          value={counts.active ?? 0}
-          title="In progress"
-          supporting="Still being considered"
-        />
-        <StatCard
-          value={counts.shortlisted ?? 0}
-          title="Shortlisted"
-          supporting="You made the cut"
-        />
-        <StatCard
-          value={counts.interview ?? 0}
-          title="At interview"
-          supporting="Interview stage reached"
-        />
-        <StatCard
-          value={counts.all ?? 0}
-          title="Total applications"
-          supporting="All time"
-        />
-      </div>
+      {/*
+        The four stat tiles that used to sit here said the same thing as the
+        tabs below — "In progress 4" twice over, and "Total" equal to "All".
+        Two rows of the same numbers push the actual applications off the
+        screen, so the tabs carry the counts on their own.
 
-      {/* Filter by stage. Counts are of everything, so the tabs do not jump. */}
+        Filter by stage. Counts are of everything, so the tabs do not jump.
+      */}
       <div className="flex flex-wrap gap-1.5 border-b border-line pb-3">
         {TABS.map((tab) => {
           const count = counts[tab.key] ?? 0;
@@ -113,7 +102,7 @@ async function Applications({
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors",
                 selected
-                  ? "border-brand-700 bg-brand-700 font-medium text-white"
+                  ? "border-brand-700 bg-brand-700 font-medium text-brand-ink"
                   : "border-line bg-card text-ink-muted hover:border-line-strong hover:text-ink",
               )}
             >
@@ -155,31 +144,64 @@ async function Applications({
           </div>
         </Card>
       ) : (
-        <ol className="space-y-3">
-          {results.map((application) => (
-            <li key={application.id}>
-              <ApplicationCard application={application} />
-            </li>
-          ))}
-        </ol>
+        <>
+          <ol className="space-y-2.5">
+            {results.map((application) => (
+              <li key={application.id}>
+                <ApplicationCard application={application} />
+              </li>
+            ))}
+          </ol>
+
+          {hasMore ? (
+            <div className="mt-4 text-center">
+              <Link
+                href={`/portal/applications?${new URLSearchParams({
+                  ...(active !== "all" ? { status: active } : {}),
+                  show: String(limit + PAGE),
+                }).toString()}`}
+                scroll={false}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:border-line-strong hover:bg-card-muted"
+              >
+                Show more
+                <span className="text-ink-subtle">
+                  ({count - results.length} more)
+                </span>
+              </Link>
+            </div>
+          ) : null}
+        </>
       )}
     </div>
   );
 }
 
+/**
+ * One application, as a row rather than a panel.
+ *
+ * Every card used to carry the full five-step tracker and a "Sent with this
+ * application" block listing the same three lines — profile, CV, supporting
+ * documents — which is identical on every application a seeker has. Four of
+ * them filled the screen; thirty would be unreadable. What differs between
+ * rows is on the row; what is the same for all of them is one click away.
+ */
 function ApplicationCard({ application }: { application: Application }) {
-  const { job } = application;
+  const { job, pipeline, stage_index, is_closed } = application;
+  const steps = pipeline.length || 1;
+  const reached = Math.max(stage_index + 1, 1);
+  // Nothing comes next once an application is closed, or at the last stage.
+  const next = is_closed ? null : (pipeline[stage_index + 1] ?? null);
 
   return (
-    <Card className="p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="font-semibold text-ink-strong">
+    <Card className="p-4">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate font-semibold text-ink-strong">
             <Link href={`/jobs/${job.id}`} className="hover:text-brand-700">
               {job.title}
             </Link>
           </h2>
-          <p className="mt-0.5 text-sm text-ink-muted">
+          <p className="mt-0.5 truncate text-sm text-ink-muted">
             {job.company}
             <span className="text-ink-subtle"> · </span>
             {job.employment_label}
@@ -188,33 +210,66 @@ function ApplicationCard({ application }: { application: Application }) {
           </p>
         </div>
 
-        <StatusBadge
-          label={application.status_label}
-          tone={APPLICATION_STATUS_TONE[application.status] ?? "grey"}
-        />
+        <div className="flex shrink-0 items-center gap-3">
+          <span className="hidden text-xs text-ink-subtle sm:inline">
+            Applied {formatDate(application.applied_at)}
+          </span>
+          <StatusBadge
+            label={application.status_label}
+            tone={APPLICATION_STATUS_TONE[application.status] ?? "grey"}
+          />
+        </div>
       </div>
 
-      <div className="mt-5">
-        <StageTracker application={application} />
+      {/*
+        Where it is and what comes next. The five labelled steps and the
+        "sent with this application" list were the same on every row and
+        told a candidate nothing they could act on; these two facts are
+        what they actually want to know.
+      */}
+      <div className="mt-3 flex items-center gap-3">
+        <div
+          className="h-1.5 flex-1 overflow-hidden rounded-full bg-line"
+          role="img"
+          aria-label={`Stage ${reached} of ${steps}: ${application.status_label}`}
+        >
+          <div
+            className={cn(
+              "h-full rounded-full transition-[width]",
+              is_closed ? "bg-status-grey" : "bg-brand-700",
+            )}
+            style={{ width: `${(reached / steps) * 100}%` }}
+          />
+        </div>
+        <span className="shrink-0 text-xs text-ink-subtle">
+          {reached} of {steps}
+        </span>
       </div>
 
-      <SentWithApplication application={application} />
+      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs">
+        <p className="text-ink-muted">
+          <span className="text-ink-subtle">Now:</span>{" "}
+          <span className="font-medium text-ink">
+            {application.status_label}
+          </span>
+          {next ? (
+            <>
+              <span className="mx-2 text-ink-subtle">→</span>
+              <span className="text-ink-subtle">Next:</span>{" "}
+              <span className="font-medium text-ink">{next.label}</span>
+            </>
+          ) : (
+            <span className="ml-2 text-ink-subtle">
+              {is_closed ? "This application is closed." : "Final stage."}
+            </span>
+          )}
+        </p>
 
-      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-ink-subtle">
-        <span className="inline-flex items-center gap-1.5">
-          <Icon name="calendar" className="size-3.5" />
-          Applied {formatDate(application.applied_at)}
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <Icon name="clock" className="size-3.5" />
-          Last update {relativeDays(application.updated_at).toLowerCase()}
-        </span>
         <Link
           href={`/jobs/${job.id}`}
-          className="ml-auto inline-flex items-center gap-1 font-medium text-brand-700 hover:underline"
+          className="font-medium text-brand-700 hover:underline"
         >
           View the position
-          <Icon name="chevron-right" className="size-3" />
         </Link>
       </div>
 

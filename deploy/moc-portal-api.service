@@ -1,0 +1,34 @@
+# The Django API behind nginx.
+#
+# Bound to loopback on purpose: nginx is the only thing that should be
+# reachable from outside, and it terminates TLS.
+
+[Unit]
+Description=MOC Candidate Portal — Django API
+After=network.target
+
+[Service]
+Type=notify
+User=www-data
+Group=www-data
+WorkingDirectory=/srv/moc-portal/backend
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=/srv/moc-portal/backend/.env
+ExecStart=/srv/moc-portal/backend/.venv/bin/gunicorn config.wsgi:application \
+    --bind 127.0.0.1:8002 \
+    --workers 3 \
+    --timeout 60 \
+    --access-logfile - \
+    --error-logfile -
+Restart=on-failure
+RestartSec=5
+
+# The process needs to write uploads and the SQLite file, and nothing else.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/moc-portal/backend
+
+[Install]
+WantedBy=multi-user.target
