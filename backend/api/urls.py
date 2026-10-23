@@ -113,6 +113,11 @@ urlpatterns = [
     ),
     path("manager/jobs/<int:job_id>/", views.manager_job_detail, name="manager-job-detail"),
     path(
+        "manager/jobs/<int:job_id>/preview/",
+        views.manager_job_preview,
+        name="manager-job-preview",
+    ),
+    path(
         "manager/jobs/<int:job_id>/status/",
         views.manager_job_status,
         name="manager-job-status",

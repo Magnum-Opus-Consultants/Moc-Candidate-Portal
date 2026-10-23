@@ -1869,6 +1869,65 @@ def manager_application_status(request, application_id: int):
 
 
 @api_view(["GET"])
+def manager_job_preview(request, job_id: int):
+    """A posting as a job seeker sees it, optionally as one named seeker.
+
+    Three things the Client asked for on Day 11, and they are the same
+    request with different amounts of "who":
+
+    - a draft, before it is published: no seeker, so no saved or applied
+      state to show;
+    - a published posting as the public sees it: likewise;
+    - the posting as a *particular* candidate sees it, with their saved
+      and applied state and their match — which is the one that answers
+      "why has this person not applied?"
+
+    It reads through the manager endpoint rather than the public one
+    because a draft or a private posting is not on the public list, and
+    previewing before publishing is the whole point.
+    """
+    current_hiring_manager(request)
+    job = get_object_or_404(Job, pk=job_id)
+
+    data = JobSerializer(job).data
+    data["is_saved"] = False
+    data["has_applied"] = False
+    data["viewing_as"] = None
+
+    as_id = request.query_params.get("as")
+    if as_id:
+        seeker = get_object_or_404(User, pk=as_id, role=Role.JOB_SEEKER)
+        profile = getattr(seeker, "profile", None)
+        data["is_saved"] = SavedJob.objects.filter(
+            job=job, candidate=seeker
+        ).exists()
+        data["has_applied"] = Application.objects.filter(
+            job=job, candidate=seeker
+        ).exists()
+        data["match"] = score_match(profile, job).as_dict()
+        data["viewing_as"] = UserSummarySerializer(seeker).data
+
+    # Who the manager can look through the eyes of: anyone who applied,
+    # plus anyone the matcher suggests. Ordered so applicants come first,
+    # because they are the ones a manager is usually asking about.
+    applied_ids = set(
+        Application.objects.filter(job=job).values_list("candidate_id", flat=True)
+    )
+    seekers = [
+        {
+            **UserSummarySerializer(profile.user).data,
+            "applied": profile.user_id in applied_ids,
+        }
+        for profile in CandidateProfile.objects.select_related("user").filter(
+            user__is_active=True
+        )[:50]
+    ]
+    seekers.sort(key=lambda row: (not row["applied"], row["name"]))
+
+    return Response({"job": data, "seekers": seekers})
+
+
+@api_view(["GET"])
 def manager_job_detail(request, job_id: int):
     """A position with its four applicant tabs: All, Shortlisted, Favourites, Suggested."""
     job = get_object_or_404(Job, pk=job_id)

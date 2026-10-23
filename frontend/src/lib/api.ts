@@ -416,6 +416,12 @@ export type ManagerDashboard = {
   activity: Activity[];
 };
 
+/** A posting rendered as a seeker sees it, and who else can be looked through. */
+export type JobPreview = {
+  job: Job & { viewing_as: UserSummary | null };
+  seekers: Array<UserSummary & { applied: boolean }>;
+};
+
 export type ManagerJobDetail = {
   job: Job;
   /** The three counts along the top of the job detail view. */
@@ -801,6 +807,14 @@ export const api = {
   managerJobs: (query = "") => get<ManagerJobList>(`/api/manager/jobs/${query}`),
   managerJob: (id: number | string) =>
     get<ManagerJobDetail>(`/api/manager/jobs/${id}/`),
+  /**
+   * A posting as a job seeker sees it. With `as`, as that seeker sees it —
+   * their saved and applied state, and their match.
+   */
+  managerJobPreview: (id: number | string, as?: string) =>
+    get<JobPreview>(
+      `/api/manager/jobs/${id}/preview/${as ? `?as=${encodeURIComponent(as)}` : ""}`,
+    ),
   /**
    * Publish an approved posting. 409 means it is already live; 400 carries
    * `fields` when a draft is still missing something the public list needs.

@@ -43,6 +43,32 @@ function readOpen(storageKey: string): boolean {
  * localStorage cannot be read during SSR and defaulting to closed would
  * make the rail flash away for everyone who never touched the toggle.
  */
+function Toggle({
+  open,
+  onClick,
+  label,
+}: {
+  open: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-expanded={open}
+      aria-label={open ? `Close the ${label}` : `Open the ${label}`}
+      title={open ? `Close the ${label}` : `Open the ${label}`}
+      className="mr-1 hidden size-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-card-muted hover:text-ink lg:grid"
+    >
+      <Icon
+        name="sidebar"
+        className={cn("size-4 transition-transform", !open && "rotate-180")}
+      />
+    </button>
+  );
+}
+
 export function SidebarLayout({
   sidebar,
   nav,
@@ -54,8 +80,15 @@ export function SidebarLayout({
   label = "sidebar",
 }: {
   sidebar: ReactNode;
-  /** The row of links in the sticky header, beside the toggle. */
-  nav: ReactNode;
+  /**
+   * The row of links in the sticky header, beside the toggle.
+   *
+   * Omit it and there is no header at all — the manager frames put every
+   * way of getting around in the rail and leave the page itself clean, so
+   * a bar holding nothing but a collapse button would be a strip of
+   * chrome the design does not have. The toggle moves into the rail.
+   */
+  nav?: ReactNode;
   children: ReactNode;
   /** Per-shell, so the manager and candidate rails remember separately. */
   storageKey: string;
@@ -111,29 +144,27 @@ export function SidebarLayout({
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-10 border-b border-line bg-card/90 px-5 py-3 backdrop-blur">
-          <nav className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={toggle}
-              aria-expanded={open}
-              aria-label={open ? `Close the ${label}` : `Open the ${label}`}
-              title={open ? `Close the ${label}` : `Open the ${label}`}
-              className="mr-1 hidden size-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-card-muted hover:text-ink lg:grid"
-            >
-              <Icon
-                name="sidebar"
-                className={cn("size-4 transition-transform", !open && "rotate-180")}
-              />
-            </button>
-            <div className={cn("flex min-w-0 flex-1 items-center", navClassName)}>
-              {nav}
-            </div>
-          </nav>
-        </header>
+      <div className="relative flex min-w-0 flex-1 flex-col">
+        {nav ? (
+          <header className="sticky top-0 z-10 border-b border-line bg-card/90 px-5 py-3 backdrop-blur">
+            <nav className="flex items-center gap-1">
+              <Toggle open={open} onClick={toggle} label={label} />
+              <div className={cn("flex min-w-0 flex-1 items-center", navClassName)}>
+                {nav}
+              </div>
+            </nav>
+          </header>
+        ) : (
+          /* No header to sit in, so the toggle floats over the top-left of
+             the page — the only chrome on a screen the design keeps clean. */
+          <div className="absolute left-2 top-3 z-10 hidden lg:block">
+            <Toggle open={open} onClick={toggle} label={label} />
+          </div>
+        )}
 
-        <main className="flex-1 px-5 py-7">{children}</main>
+        <main className={cn("flex-1 px-5 py-7", !nav && "lg:pl-12")}>
+          {children}
+        </main>
       </div>
     </div>
   );

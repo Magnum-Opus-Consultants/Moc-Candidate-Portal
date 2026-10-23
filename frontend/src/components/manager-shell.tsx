@@ -5,7 +5,7 @@ import { SidebarLayout } from "@/components/collapsible-sidebar";
 import { IdleTimeout } from "@/components/idle-timeout";
 import { LogoutButton } from "@/components/logout-button";
 import { NavLink } from "@/components/nav-link";
-import { Icon } from "@/components/ui/icon";
+import { Icon, type IconName } from "@/components/ui/icon";
 import { JOB_STATUS_TONE, cn } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 
@@ -26,11 +26,21 @@ const DOT_CLASS: Record<string, string> = {
   info: "bg-status-info",
 };
 
-const TOP_NAV = [
-  { href: "/manager", label: "Dashboard", exact: true },
-  { href: "/manager/jobs", label: "Jobs" },
-  { href: "/manager/candidates", label: "Candidates" },
-  { href: "/manager/emails", label: "Emails" },
+/**
+ * Where a manager can go, in the rail.
+ *
+ * The approved job-detail frame has no bar across the top — everything is
+ * in the dark rail — but the rail it draws only lists postings, so on its
+ * own it cannot reach the dashboard, the candidates or the emails. Moving
+ * those three into the rail honours the frame's shape without stranding
+ * three pages behind a bar that is no longer there.
+ *
+ * "Jobs" is not among them: View all jobs, directly above, already is it.
+ */
+const SIDEBAR_NAV: Array<{ href: string; label: string; icon: IconName; exact?: boolean }> = [
+  { href: "/manager", label: "Dashboard", icon: "dashboard", exact: true },
+  { href: "/manager/candidates", label: "Candidates", icon: "users" },
+  { href: "/manager/emails", label: "Emails", icon: "mail" },
 ];
 
 export function ManagerShell({
@@ -49,16 +59,6 @@ export function ManagerShell({
         sidebarClassName="bg-sidebar"
         width="w-72"
         label="jobs sidebar"
-        nav={TOP_NAV.map((item) => (
-          <NavLink
-            key={item.href}
-            href={item.href}
-            variant="tab"
-            exact={item.exact}
-          >
-            {item.label}
-          </NavLink>
-        ))}
       >
         {children}
       </SidebarLayout>
@@ -180,6 +180,20 @@ export async function ManagerSidebar() {
           View all jobs
         </Link>
       </div>
+
+      <nav className="mt-3 space-y-0.5 px-3">
+        {SIDEBAR_NAV.map((item) => (
+          <NavLink
+            key={item.href}
+            href={item.href}
+            variant="navy"
+            exact={item.exact}
+          >
+            <Icon name={item.icon} className="size-4 shrink-0" />
+            {item.label}
+          </NavLink>
+        ))}
+      </nav>
 
       <div className="mt-3 flex-1 overflow-y-auto px-1">
         <Section label="Open Jobs">

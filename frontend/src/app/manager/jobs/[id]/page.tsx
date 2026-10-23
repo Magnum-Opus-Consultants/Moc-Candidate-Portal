@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
@@ -46,15 +45,7 @@ async function JobOverview({
   const { job, tabs, stats } = result.data;
 
   return (
-    <div className="space-y-6">
-      <Link
-        href="/manager/jobs"
-        className="inline-flex items-center gap-2 text-sm text-ink-muted transition-colors hover:text-ink"
-      >
-        <Icon name="chevron-right" className="size-3.5 rotate-180" />
-        All jobs
-      </Link>
-
+    <div className="space-y-5">
       {/* Job details overview header. */}
       <JobDetailHeader job={job} />
 

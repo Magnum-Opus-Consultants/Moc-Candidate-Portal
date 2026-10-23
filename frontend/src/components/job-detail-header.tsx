@@ -130,12 +130,13 @@ export function ApplicantStats({
           key={card.title}
           className="flex min-h-[124px] items-center gap-4 rounded-lg border border-line bg-card px-6 py-5"
         >
+          {/* A ring, as the frame draws it — no glyph inside. The three
+              cards are told apart by their words, and three different
+              icons were three more things to read. */}
           <span
             aria-hidden
-            className="grid size-9 shrink-0 place-items-center rounded-full border border-line-strong text-ink-subtle"
-          >
-            <Icon name={card.icon} className="size-4" />
-          </span>
+            className="size-9 shrink-0 rounded-full border border-line-strong"
+          />
           <div className="min-w-0">
             <p className="text-[30px] font-bold leading-[38px] text-ink-strong">
               {card.value}
