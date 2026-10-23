@@ -1,5 +1,6 @@
 """Serializers shaping the API payloads the front end renders."""
 
+from django.utils import timezone
 from rest_framework import serializers
 
 from .models import (
@@ -321,7 +322,87 @@ class ApplicationSerializer(serializers.ModelSerializer):
         }
 
 
-class ApplicantSerializer(serializers.ModelSerializer):
+
+class CandidatePaneMixin:
+    """The fields the job detail view's candidate pane shows.
+
+    Shared by the applicant rows and the suggested rows because the pane is
+    the same pane whichever tab opened it — a manager comparing a suggestion
+    against an applicant should not find half the detail missing on one of
+    them.
+    """
+
+    def _pane_profile(self, user):
+        return getattr(user, "profile", None)
+
+    def _years_experience(self, profile) -> int | None:
+        """Total years across the roles on the record, rounded down.
+
+        Summed from the entries rather than read off experience_level,
+        because the design shows a number and the level is a band. A role
+        still running counts up to today.
+        """
+        if profile is None:
+            return None
+        days = 0
+        for role in profile.experience.all():
+            start = role.start_date
+            if not start:
+                continue
+            end = role.end_date or timezone.now().date()
+            if end < start:
+                continue
+            days += (end - start).days
+        return days // 365 if days else None
+
+    def _pane_fields(self, user) -> dict:
+        profile = self._pane_profile(user)
+        if profile is None:
+            return {
+                "role_title": "",
+                "summary": "",
+                "years_experience": None,
+                "availability_label": "",
+                "skills": [],
+                "education": "",
+            }
+
+        # Skills are stored either as plain strings (older rows) or as
+        # {name, proficiency} objects.
+        skills = [
+            entry.get("name") if isinstance(entry, dict) else entry
+            for entry in (profile.skills or [])
+        ]
+
+        qualification = profile.education.first()
+        if qualification:
+            education = ", ".join(
+                part
+                for part in (
+                    qualification.get_level_display(),
+                    qualification.field_of_study,
+                    qualification.institution_name,
+                )
+                if part
+            )
+        elif profile.highest_education_level:
+            education = profile.get_highest_education_level_display()
+        else:
+            education = ""
+
+        return {
+            "role_title": profile.headline or profile.role_category,
+            "summary": profile.summary,
+            "years_experience": self._years_experience(profile),
+            "availability_label": profile.get_availability_display()
+            if profile.availability
+            else "",
+            "skills": [s for s in skills if s][:8],
+            "education": education,
+        }
+
+
+class ApplicantSerializer(CandidatePaneMixin, serializers.ModelSerializer):
     """One row in a position's applicant tabs."""
 
     candidate = UserSummarySerializer(read_only=True)
@@ -329,6 +410,7 @@ class ApplicantSerializer(serializers.ModelSerializer):
     location = serializers.SerializerMethodField()
     status_label = serializers.CharField(source="get_status_display", read_only=True)
     match = serializers.SerializerMethodField()
+    pane = serializers.SerializerMethodField()
 
     class Meta:
         model = Application
@@ -341,7 +423,11 @@ class ApplicantSerializer(serializers.ModelSerializer):
             "status_label",
             "applied_at",
             "match",
+            "pane",
         ]
+
+    def get_pane(self, obj) -> dict:
+        return self._pane_fields(obj.candidate)
 
     def _profile(self, obj):
         return getattr(obj.candidate, "profile", None)
@@ -413,7 +499,9 @@ class AutomaticEmailSerializer(serializers.ModelSerializer):
             "event",
             "label",
             "subject",
+            "preheader",
             "body",
+            "body_is_html",
             "trigger",
             "trigger_label",
             "conditions",

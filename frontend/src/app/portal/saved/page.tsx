@@ -1,12 +1,8 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
 
-import {
-  JobDetailPane,
-  JobResultCard,
-  type Params,
-} from "@/components/job-board";
-import { JobRow } from "@/components/job-cards";
+import { type Params } from "@/components/job-board";
+import { SavedJobRow } from "@/components/saved-job-row";
 import { BackendOffline, CardSkeleton } from "@/components/states";
 import { Icon } from "@/components/ui/icon";
 import { Button, Card, SectionHeading } from "@/components/ui/primitives";
@@ -28,12 +24,13 @@ export default function SavedJobsPage({
 }
 
 /**
- * Saved Jobs, in the same two-pane shape as the board and Recommended Jobs.
+ * Saved Jobs: one panel of rows, each with its own apply action.
  *
- * It used to be a stack of thin rows that said only the title and when it
- * was saved, so comparing two saved roles meant opening each in turn — the
- * opposite of what saving them was for. The list and the detail pane are the
- * board's own components, so a saved job reads exactly like any other.
+ * A saved list is a to-do list, and the question it answers is "which of
+ * these have I not applied to yet". Rows answer that down a single column;
+ * the two-pane board this replaced answered it one job at a time. Applying
+ * happens on the row, because saving a job and then having to open it to
+ * apply is the step the page exists to remove.
  */
 async function SavedJobs({
   searchParams,
@@ -56,20 +53,14 @@ async function SavedJobs({
   const saved = savedResult.data.results;
   const viewed = viewedResult.ok ? viewedResult.data.results : [];
 
-  // Default to the first saved job so the detail pane is never empty.
-  const selected =
-    saved.find((job) => String(job.id) === params.job) ?? saved[0] ?? null;
-
   return (
-    <div className="space-y-5">
+    <div className="space-y-8">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight text-ink-strong">
+        <h1 className="text-3xl font-semibold leading-[38px] tracking-tight text-ink-strong">
           Saved Jobs
         </h1>
-        <p className="mt-1 text-sm text-ink-muted">
-          {saved.length === 0
-            ? "Review and apply to your saved jobs."
-            : `${saved.length} ${saved.length === 1 ? "role" : "roles"} kept for later. Pick one to read it beside the list.`}
+        <p className="mt-1 text-base leading-6 text-ink-muted">
+          Review and apply to your saved jobs
         </p>
       </div>
 
@@ -113,44 +104,27 @@ async function SavedJobs({
           </Button>
         </Card>
       ) : (
-        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
-          <ol className="space-y-3">
-            {saved.map((job) => (
-              <li key={job.id}>
-                {/* Everything on this page is saved by definition. */}
-                <JobResultCard
-                  job={job}
-                  params={params}
-                  selected={selected?.id === job.id}
-                  base={BASE}
-                  saved
-                />
-              </li>
-            ))}
-          </ol>
-
-          {selected ? (
-            <div
-              id="detail"
-              className="sticky top-4 flex max-h-[calc(100dvh-2rem)] scroll-mt-4 flex-col overflow-hidden rounded-xl border border-line bg-card shadow-sm"
-            >
-              <JobDetailPane job={selected} />
-            </div>
-          ) : null}
-        </div>
+        <ol className="divide-y divide-line-soft overflow-hidden rounded-2xl bg-card shadow-xs">
+          {saved.map((job) => (
+            <SavedJobRow key={job.id} job={job} />
+          ))}
+        </ol>
       )}
 
       {viewed.length > 0 ? (
-        <section>
+        <section className="space-y-4">
           <SectionHeading
             title="Recently viewed"
             subtext="The last 10 jobs you opened"
           />
-          <div className="space-y-2">
+          {/* The same panel as the saved list above: two lists of jobs on
+              one page styled two different ways reads as two components
+              that happen to share a screen. */}
+          <ol className="divide-y divide-line-soft overflow-hidden rounded-2xl bg-card shadow-xs">
             {viewed.map((job) => (
-              <JobRow key={job.id} job={job} context="viewed" />
+              <SavedJobRow key={job.id} job={job} when="viewed" />
             ))}
-          </div>
+          </ol>
         </section>
       ) : null}
     </div>
@@ -161,14 +135,7 @@ function SavedSkeleton() {
   return (
     <div className="space-y-5">
       <CardSkeleton className="h-14 rounded-xl" />
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
-        <div className="space-y-3">
-          {[0, 1, 2].map((i) => (
-            <CardSkeleton key={i} className="h-52 rounded-xl" />
-          ))}
-        </div>
-        <CardSkeleton className="h-[70dvh] rounded-xl" />
-      </div>
+      <CardSkeleton className="h-72 rounded-xl" />
     </div>
   );
 }

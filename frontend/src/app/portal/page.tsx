@@ -16,7 +16,6 @@ import {
   SectionHeading,
   StatCard,
   StatusBadge,
-  cn,
 } from "@/components/ui/primitives";
 import { api, relativeDays, API_BASE_URL } from "@/lib/api";
 
@@ -184,29 +183,61 @@ async function Dashboard() {
 
         {/* Right column — the big profile-completion panel. */}
         <aside className="space-y-4 lg:sticky lg:top-4">
-          <Card className="p-6">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-base font-semibold text-ink-strong">
-                Profile completion
-              </h2>
-              <StatusBadge label={strength.label} tone={strength.tone} />
-            </div>
+          {/*
+            The petrol panel from the frame. Dark in both themes, on fixed
+            --panel-* tokens: the brand ramp inverts for dark mode, which
+            under a panel whose whole point is to be the dark surface would
+            turn it pale and leave white text on near-white.
+
+            It carries only what the frame carries — the wheel, the status
+            and the one action. The branded-CV download and the list of
+            unfinished sections sit in their own card below, rather than
+            being crammed onto a surface that was designed to say one thing.
+          */}
+          <section className="rounded-2xl bg-panel p-6 shadow-sm">
+            <h2 className="text-base font-semibold text-panel-ink">Profile</h2>
 
             <div className="mt-5 flex justify-center">
               <ProgressCircle
                 value={profile.completion}
-                size="xl"
-                label="Complete"
+                size="2xl"
+                tone="panel"
                 title="Profile completion"
               />
             </div>
 
-            <p className="mt-5 text-center text-sm leading-relaxed text-ink-muted">
+            {/* One pill, label and value together, as the frame has it. */}
+            <div className="mt-6 flex justify-center">
+              <span className="inline-flex items-center gap-2 rounded-full bg-panel-ink px-3.5 py-1.5 text-xs">
+                <span className="font-medium text-panel">Profile status</span>
+                <span aria-hidden className="size-1.5 rounded-full bg-ink-subtle" />
+                <span className="text-ink-muted">{strength.label}</span>
+              </span>
+            </div>
+
+            <p className="mt-4 text-center text-sm leading-relaxed text-panel-ink-muted">
               {profile.completion >= 100
                 ? "Your profile is complete. A full profile is ranked higher against every role you apply for."
-                : profile.can_download_branded_cv
-                  ? "Your profile is complete enough to download an MOC-branded CV."
-                  : `Reach 80% to unlock your MOC-branded CV — ${80 - profile.completion}% to go.`}
+                : "A complete profile gets you better job matches and more recruiter visibility."}
+            </p>
+
+            <Link
+              href="/portal/profile"
+              className="mt-6 flex h-11 w-full items-center justify-center rounded-xl bg-panel-action px-4 text-sm font-semibold text-panel-ink transition-colors hover:bg-panel-action-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-panel-ink/60 active:scale-[0.99]"
+            >
+              {profile.completion === 0
+                ? "Fill in your profile"
+                : profile.completion >= 100
+                  ? "Review and update my profile"
+                  : "Complete your profile"}
+            </Link>
+          </section>
+
+          <Card className="p-6">
+            <p className="text-center text-sm leading-relaxed text-ink-muted">
+              {profile.can_download_branded_cv
+                ? "Your profile is complete enough to download an MOC-branded CV."
+                : `Reach 80% to unlock your MOC-branded CV — ${80 - profile.completion}% to go.`}
             </p>
 
             {/*
@@ -246,33 +277,6 @@ async function Dashboard() {
               </div>
             ) : null}
 
-            {/* "Complete your profile" under a full ring is nonsense — once
-                it is done the link is for keeping it current. */}
-            {/*
-              The quiet one once the profile is done: two filled slabs of
-              equal weight make neither of them the obvious thing to press.
-              The chevron sits in a group-hover nudge rather than floating
-              at the end of the line.
-            */}
-            <Link
-              href="/portal/profile"
-              className={cn(
-                "group mt-2 flex h-11 w-full items-center justify-center gap-1.5 rounded-xl px-4 text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-200 active:scale-[0.99]",
-                profile.completion >= 100
-                  ? "text-ink-muted hover:bg-card-muted hover:text-ink"
-                  : "bg-brand-700 text-brand-ink shadow-sm hover:bg-brand-800 hover:shadow-md",
-              )}
-            >
-              {profile.completion === 0
-                ? "Fill in your profile"
-                : profile.completion >= 100
-                  ? "Review and update my profile"
-                  : "Complete your profile"}
-              <Icon
-                name="chevron-right"
-                className="size-3.5 transition-transform group-hover:translate-x-0.5"
-              />
-            </Link>
           </Card>
         </aside>
       </div>

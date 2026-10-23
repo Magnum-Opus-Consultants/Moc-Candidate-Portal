@@ -30,7 +30,12 @@ export default function SignInPage() {
 /** The provider check is a runtime fetch, so it lives inside the boundary. */
 async function SignInPanel() {
   const providers = await api.authProviders();
-  return <SignInForm linkedin={providers.ok && providers.data.linkedin} />;
+  return (
+    <SignInForm
+      linkedin={providers.ok && providers.data.linkedin}
+      google={providers.ok && providers.data.google}
+    />
+  );
 }
 
 /** A quiet stand-in while the provider check and query string resolve. */

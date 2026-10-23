@@ -24,7 +24,7 @@ export type Tone =
   | "rose"
   | "info";
 
-const TONE_CLASS: Record<Tone, { bg: string; text: string; dot: string }> = {
+export const TONE_CLASS: Record<Tone, { bg: string; text: string; dot: string }> = {
   green: {
     bg: "bg-status-green-bg",
     text: "text-status-green",

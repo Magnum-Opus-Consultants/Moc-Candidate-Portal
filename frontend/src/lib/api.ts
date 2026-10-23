@@ -283,6 +283,22 @@ export type ApplicationList = {
   pipeline: PipelineStage[];
 };
 
+/**
+ * What the candidate pane beside the applicant list shows.
+ *
+ * The same shape on an applicant and on a suggestion: the pane is the same
+ * pane whichever tab opened it, and a manager comparing the two should not
+ * find half the detail missing on one of them.
+ */
+export type CandidatePane = {
+  role_title: string;
+  summary: string;
+  years_experience: number | null;
+  availability_label: string;
+  skills: string[];
+  education: string;
+};
+
 export type Applicant = {
   id: number;
   candidate: UserSummary;
@@ -292,6 +308,8 @@ export type Applicant = {
   status_label: string;
   applied_at: string;
   match: Match;
+  saved: boolean;
+  pane: CandidatePane;
 };
 
 export type SuggestedCandidate = {
@@ -299,6 +317,8 @@ export type SuggestedCandidate = {
   headline: string;
   location: string;
   match: Match;
+  saved: boolean;
+  pane: CandidatePane;
 };
 
 export type Activity = {
@@ -348,7 +368,11 @@ export type AutomaticEmail = {
   event: string;
   label: string;
   subject: string;
+  /** The line a mail client shows beside the subject. */
+  preheader: string;
   body: string;
+  /** True once the wording has been edited in the rich editor. */
+  body_is_html: boolean;
   trigger: string;
   trigger_label: string;
   conditions: Record<string, string>;
@@ -394,6 +418,8 @@ export type ManagerDashboard = {
 
 export type ManagerJobDetail = {
   job: Job;
+  /** The three counts along the top of the job detail view. */
+  stats: { total: number; saved: number; new: number };
   tabs: {
     all: Applicant[];
     shortlisted: Applicant[];
@@ -605,9 +631,18 @@ export type JobList = {
   has_more: boolean;
 };
 
+/**
+ * The status moves a manager can make on a posting, matching the backend's
+ * JOB_TRANSITIONS. Publishing is deliberately absent: it is the one move the
+ * server validates the posting for, so it has its own endpoint and its own
+ * error shape.
+ */
+export type JobStatusAction = "pause" | "close" | "private" | "draft";
+
 /** Which external identity providers have credentials configured. */
 export type AuthProviders = {
   linkedin: boolean;
+  google: boolean;
 };
 
 /** What a parsed CV offers to fill in, keyed as the profile update expects. */
@@ -772,6 +807,15 @@ export const api = {
    */
   publishJob: (id: number | string) =>
     send<{ detail: string; job: Job }>("POST", `/api/manager/jobs/${id}/publish/`),
+  /**
+   * Move a posting between states: pause, close, make private, or send it
+   * back to draft. Publishing has its own call because it is the one
+   * transition the server validates the posting for.
+   */
+  setJobStatus: (id: number | string, action: JobStatusAction) =>
+    send<{ detail: string; job: Job }>("POST", `/api/manager/jobs/${id}/status/`, {
+      action,
+    }),
   /** Save edits to an existing posting. A live job updates on the board at once. */
   updateJob: (id: number | string, job: Record<string, unknown>) =>
     postJobForm(`/api/manager/jobs/${id}/update/`, job),
@@ -870,6 +914,24 @@ export const api = {
       remember,
     }),
   logout: () => send("POST", "/api/auth/logout/"),
+  /**
+   * Ask for a reset link. Always reports success, whether or not the
+   * address has an account — the server answers the same way on purpose,
+   * because "no account with that email" tells a stranger who has been
+   * job hunting.
+   */
+  requestPasswordReset: (email: string) =>
+    send<{ detail: string }>("POST", "/api/auth/password-reset/", { email }),
+  /** Set a new password from a link. 400 means the link has expired. */
+  confirmPasswordReset: (uid: string, token: string, new_password: string) =>
+    send<{ detail: string }>("POST", "/api/auth/password-reset/confirm/", {
+      uid,
+      token,
+      new_password,
+    }),
+  /** Another verification link, for an address that has not been proved. */
+  resendVerification: (email: string) =>
+    send<{ detail: string }>("POST", "/api/auth/verify/resend/", { email }),
   updateName: (name: string) =>
     send<AuthUser>("POST", "/api/account/profile/", { name }),
   updateEmail: (email: string) =>

@@ -58,6 +58,8 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # After AuthenticationMiddleware, which is what puts request.user there.
+    "api.middleware.IdleSessionMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -237,6 +239,14 @@ if not DEBUG:
         )
 
 
+# How long a signed-in session may sit idle before it is ended, enforced by
+# api.middleware.IdleSessionMiddleware. Thirty minutes is the usual figure for
+# a system holding personal information that people open on shared machines —
+# long enough to read a long job description and write a cover note, short
+# enough that a walked-away-from desk does not stay signed in all afternoon.
+# Set to 0 to switch the behaviour off.
+SESSION_IDLE_SECONDS = int(os.getenv("DJANGO_SESSION_IDLE_SECONDS", str(30 * 60)))
+
 # Uploaded files — candidate CVs and profile photos.
 # Without these Django writes relative to the working directory, which put
 # uploads inside the source tree and gave them URLs nothing served.
@@ -261,6 +271,15 @@ LINKEDIN_CLIENT_ID = os.getenv("LINKEDIN_CLIENT_ID", "")
 LINKEDIN_CLIENT_SECRET = os.getenv("LINKEDIN_CLIENT_SECRET", "")
 LINKEDIN_REDIRECT_URI = os.getenv(
     "LINKEDIN_REDIRECT_URI", "http://localhost:8002/api/auth/linkedin/callback/"
+)
+
+# Sign in with Google (OpenID Connect). Nothing needs enabling in the Google
+# Cloud API Library — sign-in is not a Google API. The OAuth client is of type
+# "Web application" and the redirect URI below must be registered on it.
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REDIRECT_URI = os.getenv(
+    "GOOGLE_REDIRECT_URI", "http://localhost:8002/api/auth/google/callback/"
 )
 # Allow the browser to send the session cookie on cross-origin API calls (the
 # local dev setup, where the front end and API are on different ports). Harmless

@@ -41,6 +41,7 @@ async function SignUpPanel({
   return (
     <SignUpForm
       linkedin={providers.ok && providers.data.linkedin}
+      google={providers.ok && providers.data.google}
       notice={
         code
           ? (AUTH_ERRORS[code] ?? "Could not sign up. Please try again.")

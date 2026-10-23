@@ -27,7 +27,8 @@ from rest_framework.response import Response
 
 from .cv import build_cv, cv_filename
 from . import cv_parse
-from .automatic_mail import send_automatic_email
+from .automatic_mail import context_for, send_automatic_email
+from .html_sanitize import sanitize_html
 from .matching import score_match
 from .models import (
     attach_counts,
@@ -64,6 +65,7 @@ from .models import (
     ViewedJob,
 )
 from .serializers import (
+    CandidatePaneMixin,
     ActivitySerializer,
     CandidateCommentSerializer,
     ApplicantSerializer,
@@ -781,7 +783,31 @@ def update_candidate_profile(request):
 
     _recompute_sections(profile, user)
     profile.save()
+    _maybe_send_cv_unlocked(profile, user)
     return JsonResponse(CandidateProfileSerializer(profile).data)
+
+
+
+def _maybe_send_cv_unlocked(profile: CandidateProfile, user: User) -> None:
+    """Tell a seeker their CV is unlocked, the first time only.
+
+    The Client's note is explicit: send once when the profile first crosses
+    80%, not on every later save. The stamp on the user is what makes that
+    true — a flag derived from the current percentage would fire again
+    every time somebody edited a profile that was already above the line,
+    and would fire a second time if they dropped below it and came back.
+    """
+    if user.cv_unlocked_at is not None or profile.completion < 80:
+        return
+
+    user.cv_unlocked_at = timezone.now()
+    user.save(update_fields=["cv_unlocked_at"])
+
+    if user.email:
+        send_automatic_email(
+            EmailTrigger.PROFILE_CV_UNLOCKED, user.email, context_for(user=user)
+        )
+
 
 
 def toggle_saved_job(request, job_id: int):
@@ -854,11 +880,7 @@ def apply_to_job(request, job_id: int):
     send_automatic_email(
         EmailTrigger.APPLICATION_RECEIVED,
         seeker.email,
-        {
-            "candidate_name": seeker.display_name,
-            "job_title": job.title,
-            "company": job.company,
-        },
+        context_for(user=seeker, job=job, application=application),
         about=job.title,
     )
 
@@ -1682,11 +1704,7 @@ def manager_job_publish(request, job_id: int):
         send_automatic_email(
             EmailTrigger.NEW_JOB_PUBLISHED,
             profile.user.email,
-            {
-                "candidate_name": profile.user.display_name,
-                "job_title": job.title,
-                "company": job.company,
-            },
+            context_for(user=profile.user, job=job),
             about=job.title,
         )
 
@@ -1769,13 +1787,96 @@ def manager_jobs(request):
     )
 
 
+
+def _with_saved(rows: list[dict], bookmarked_ids: set) -> list[dict]:
+    """Mark each applicant row with whether this manager bookmarked them.
+
+    Computed here rather than in the serializer because it depends on who is
+    asking, and a serializer that reaches for the request user is harder to
+    reuse than one that does not.
+    """
+    for row in rows:
+        row["saved"] = row["candidate"]["id"] in bookmarked_ids
+    return rows
+@api_view(["POST"])
+def manager_application_status(request, application_id: int):
+    """Move an application to another recruitment stage.
+
+    The stage already existed on the model and in the candidate's timeline,
+    but nothing could change it: there was no endpoint, so an application
+    sat on "Applied" for ever and the Client's shortlist, interview and
+    outcome emails had no event to fire on.
+
+    The email goes out from the saved transition rather than from the
+    request, as the Client's notes require — so re-sending the same status
+    does nothing at all, and a candidate cannot be told twice that they
+    have been shortlisted because somebody double-clicked.
+    """
+    manager = current_hiring_manager(request)
+    application = get_object_or_404(
+        Application.objects.select_related("candidate", "job"), pk=application_id
+    )
+
+    requested = (request.data.get("status") or "").strip()
+    valid = {value for value, _ in ApplicationStatus.choices}
+    if requested not in valid:
+        return Response(
+            {"detail": f"Unknown status. Expected one of: {', '.join(sorted(valid))}."},
+            status=400,
+        )
+
+    previous = application.status
+    if requested == previous:
+        return Response(
+            {
+                "detail": "That application is already at this stage.",
+                "application": ApplicationSerializer(application).data,
+            }
+        )
+
+    application.status = requested
+    application.save(update_fields=["status"])
+    application.events.create(
+        from_status=previous, to_status=requested, actor=manager
+    )
+    Activity.objects.create(
+        actor=manager,
+        verb=f"moved an application to {application.get_status_display()} for",
+        target=application.job.title,
+    )
+
+    if application.candidate.email:
+        send_automatic_email(
+            EmailTrigger.APPLICATION_STATUS_CHANGED,
+            application.candidate.email,
+            context_for(
+                user=application.candidate,
+                job=application.job,
+                application=application,
+            ),
+            about=application.job.title,
+        )
+
+    return Response(
+        {
+            "detail": (
+                f"{application.candidate.display_name} moved to "
+                f"{application.get_status_display()}."
+            ),
+            "application": ApplicationSerializer(application).data,
+        }
+    )
+
+
 @api_view(["GET"])
 def manager_job_detail(request, job_id: int):
     """A position with its four applicant tabs: All, Shortlisted, Favourites, Suggested."""
     job = get_object_or_404(Job, pk=job_id)
     manager = current_hiring_manager(request)
 
-    applications = Application.objects.filter(job=job).select_related("candidate")
+    applications = Application.objects.filter(job=job).select_related(
+        "candidate", "candidate__profile"
+    ).prefetch_related("candidate__profile__experience", "candidate__profile__education")
     bookmarked_ids = set()
     if manager:
         bookmarked_ids = set(
@@ -1785,9 +1886,16 @@ def manager_job_detail(request, job_id: int):
         )
 
     applied_ids = set(applications.values_list("candidate_id", flat=True))
+
+    # The pane beside the list shows the same detail whichever tab opened it,
+    # so the suggestions carry it too. prefetch_related keeps that one query
+    # each rather than one per candidate.
+    pane = CandidatePaneMixin()
     suggested = []
-    for profile in CandidateProfile.objects.select_related("user").exclude(
-        user_id__in=applied_ids
+    for profile in (
+        CandidateProfile.objects.select_related("user")
+        .prefetch_related("experience", "education")
+        .exclude(user_id__in=applied_ids)
     ):
         match = score_match(profile, job)
         if match.score <= 0:
@@ -1798,6 +1906,8 @@ def manager_job_detail(request, job_id: int):
                 "headline": profile.headline,
                 "location": profile.location,
                 "match": match.as_dict(),
+                "saved": profile.user_id in bookmarked_ids,
+                "pane": pane._pane_fields(profile.user),
             }
         )
     suggested.sort(key=lambda row: row["match"]["score"], reverse=True)
@@ -1805,14 +1915,36 @@ def manager_job_detail(request, job_id: int):
     return Response(
         {
             "job": JobSerializer(job).data,
+            "stats": {
+                "total": applications.count(),
+                "saved": sum(
+                    1
+                    for a in applications
+                    if a.candidate_id in bookmarked_ids
+                ),
+                # "New" is what the manager has not opened yet, which is what
+                # the frame's "Applications that haven't been viewed" means.
+                "new": applications.filter(
+                    status=ApplicationStatus.APPLIED
+                ).count(),
+            },
             "tabs": {
-                "all": ApplicantSerializer(applications, many=True).data,
-                "shortlisted": ApplicantSerializer(
-                    applications.filter(status=ApplicationStatus.SHORTLISTED), many=True
-                ).data,
-                "favourites": ApplicantSerializer(
-                    applications.filter(candidate_id__in=bookmarked_ids), many=True
-                ).data,
+                "all": _with_saved(
+                    ApplicantSerializer(applications, many=True).data, bookmarked_ids
+                ),
+                "shortlisted": _with_saved(
+                    ApplicantSerializer(
+                        applications.filter(status=ApplicationStatus.SHORTLISTED),
+                        many=True,
+                    ).data,
+                    bookmarked_ids,
+                ),
+                "favourites": _with_saved(
+                    ApplicantSerializer(
+                        applications.filter(candidate_id__in=bookmarked_ids), many=True
+                    ).data,
+                    bookmarked_ids,
+                ),
                 "suggested": suggested,
             },
         }
@@ -2164,7 +2296,22 @@ def automatic_email_save(request, email_id: int):
         body = str(data.get("body") or "").strip()
         if not body:
             return Response({"detail": "An email needs some wording."}, status=400)
-        email.body = body
+        is_html = bool(data.get("body_is_html", email.body_is_html))
+        # Sanitised here as well as at send time. Storing markup a browser
+        # sent us unchanged means the next thing to render it — a preview,
+        # an export, a future screen — has to remember to clean it.
+        email.body = sanitize_html(body) if is_html else body
+        email.body_is_html = is_html
+
+    if "label" in data:
+        label = str(data.get("label") or "").strip()
+        if not label:
+            return Response({"detail": "An email needs a name."}, status=400)
+        email.label = label[:160]
+
+    # Allowed to be empty: a preheader is a nicety, not a requirement.
+    if "preheader" in data:
+        email.preheader = str(data.get("preheader") or "").strip()[:200]
 
     if "label" in data and str(data.get("label") or "").strip():
         email.label = str(data["label"]).strip()[:160]

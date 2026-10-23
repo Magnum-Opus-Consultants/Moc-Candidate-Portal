@@ -12,6 +12,26 @@ urlpatterns = [
     path("auth/login/", auth_views.login_view, name="auth-login"),
     path("auth/logout/", auth_views.logout_view, name="auth-logout"),
     path("auth/me/", auth_views.me, name="auth-me"),
+    path(
+        "auth/verify/resend/",
+        auth_views.resend_verification,
+        name="auth-verify-resend",
+    ),
+    path(
+        "auth/verify/<str:uidb64>/<str:token>/",
+        auth_views.verify_email,
+        name="auth-verify",
+    ),
+    path(
+        "auth/password-reset/",
+        auth_views.request_password_reset,
+        name="auth-password-reset",
+    ),
+    path(
+        "auth/password-reset/confirm/",
+        auth_views.confirm_password_reset,
+        name="auth-password-reset-confirm",
+    ),
     path("auth/providers/", oauth_views.providers, name="auth-providers"),
     path(
         "auth/linkedin/start/", oauth_views.linkedin_start, name="auth-linkedin-start"
@@ -20,6 +40,17 @@ urlpatterns = [
         "auth/linkedin/callback/",
         oauth_views.linkedin_callback,
         name="auth-linkedin-callback",
+    ),
+    path(
+        "manager/applications/<int:application_id>/status/",
+        views.manager_application_status,
+        name="manager-application-status",
+    ),
+    path("auth/google/start/", oauth_views.google_start, name="auth-google-start"),
+    path(
+        "auth/google/callback/",
+        oauth_views.google_callback,
+        name="auth-google-callback",
     ),
     path("account/profile/", auth_views.update_profile, name="account-profile"),
     path("account/email/", auth_views.change_email, name="account-email"),

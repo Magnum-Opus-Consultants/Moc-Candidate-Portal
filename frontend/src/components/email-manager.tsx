@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { EmailList } from "@/components/email-list";
 import { Icon } from "@/components/ui/icon";
 import {
   Button,
@@ -14,7 +15,7 @@ import {
 import {
   api,
   formatDate,
-  relativeDays,
+
   type AutomaticEmail,
   type EmailLogEntry,
   type EmailTrigger,
@@ -80,11 +81,7 @@ export function EmailManager({
               onDone={() => setAdding(false)}
             />
           ) : null}
-          <div className="space-y-4">
-            {emails.map((email) => (
-              <EmailEditor key={email.id} email={email} triggers={triggers} />
-            ))}
-          </div>
+          <EmailList emails={emails} />
         </>
       ) : (
         <SentLog log={log} />
@@ -94,145 +91,6 @@ export function EmailManager({
 }
 
 /* --- Emails ---------------------------------------------------------------- */
-
-function EmailEditor({
-  email,
-  triggers,
-}: {
-  email: AutomaticEmail;
-  triggers: EmailTrigger[];
-}) {
-  const router = useRouter();
-  const [subject, setSubject] = useState(email.subject);
-  const [body, setBody] = useState(email.body);
-  const [active, setActive] = useState(email.is_active);
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  const trigger = triggers.find((row) => row.value === email.trigger);
-  const dirty =
-    subject !== email.subject || body !== email.body || active !== email.is_active;
-
-  async function save() {
-    setBusy(true);
-    setNote(null);
-    setFailed(false);
-
-    const result = await api.saveEmail(email.id, {
-      subject,
-      body,
-      is_active: active,
-    });
-    setBusy(false);
-
-    if (result.ok) {
-      setNote(result.data.detail);
-      router.refresh();
-      return;
-    }
-    setFailed(true);
-    setNote(result.error);
-  }
-
-  async function remove() {
-    const result = await api.deleteEmail(email.id);
-    if (result.ok) {
-      router.refresh();
-      return;
-    }
-    setFailed(true);
-    setNote(result.error);
-  }
-
-  return (
-    <Card className={cn("p-5", !active && "opacity-70")}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="font-semibold text-ink-strong">{email.label}</h2>
-            <StatusBadge
-              label={active ? "On" : "Off"}
-              tone={active ? "green" : "grey"}
-            />
-            {email.is_custom ? (
-              <StatusBadge label="Added here" tone="info" />
-            ) : null}
-          </div>
-          <p className="mt-1 text-xs text-ink-subtle">
-            Sends when: {email.trigger_label}
-            {Object.entries(email.conditions ?? {}).map(([field, value]) => (
-              <span key={field}> · only when {field} is {value}</span>
-            ))}
-          </p>
-          <p className="text-xs text-ink-subtle">
-            Sent {email.send_count}{" "}
-            {email.send_count === 1 ? "time" : "times"} · updated{" "}
-            {relativeDays(email.updated_at)}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <label className="flex cursor-pointer items-center gap-2 text-xs text-ink-muted">
-            <input
-              type="checkbox"
-              checked={active}
-              onChange={(event) => setActive(event.target.checked)}
-              className="size-4 rounded border-line"
-            />
-            Active
-          </label>
-          {email.is_custom ? (
-            <button
-              type="button"
-              onClick={remove}
-              className="text-xs text-ink-subtle hover:text-status-rose"
-            >
-              Delete
-            </button>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="mt-4 space-y-3">
-        <Labelled label="Subject">
-          <input
-            value={subject}
-            onChange={(event) => setSubject(event.target.value)}
-            className="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink focus:border-brand-500 focus:outline-none"
-          />
-        </Labelled>
-        <Labelled label="Wording">
-          <textarea
-            rows={8}
-            value={body}
-            onChange={(event) => setBody(event.target.value)}
-            className="w-full rounded-lg border border-line bg-card px-3 py-2 font-mono text-sm leading-relaxed text-ink focus:border-brand-500 focus:outline-none"
-          />
-        </Labelled>
-      </div>
-
-      <Placeholders trigger={trigger} />
-
-      <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-line pt-4">
-        <Button size="sm" onClick={save} disabled={busy || !dirty}>
-          {busy ? "Saving…" : dirty ? "Save wording" : "Saved"}
-        </Button>
-        {note ? (
-          <span
-            role={failed ? "alert" : "status"}
-            className={cn(
-              "text-xs",
-              failed ? "text-status-rose" : "text-status-green",
-            )}
-          >
-            {note}
-          </span>
-        ) : null}
-      </div>
-    </Card>
-  );
-}
 
 function NewEmailForm({
   triggers,

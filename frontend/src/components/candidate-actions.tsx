@@ -180,3 +180,56 @@ export function CandidateActions({
     </div>
   );
 }
+
+/**
+ * Save on its own, for the candidate pane beside a position's applicant
+ * list.
+ *
+ * The same personal bookmark as the one on a candidate's profile, without
+ * the shortlist picker beside it: on that screen a manager is scanning
+ * candidates for one posting, and "which position?" is already answered.
+ */
+export function CandidateBookmarkButton({
+  candidateId,
+  initialSaved = false,
+}: {
+  candidateId: number;
+  initialSaved?: boolean;
+}) {
+  const router = useRouter();
+  const [saved, setSaved] = useState(initialSaved);
+  const [busy, setBusy] = useState(false);
+
+  async function toggle() {
+    setBusy(true);
+    const result = await api.bookmarkCandidate(candidateId);
+    setBusy(false);
+    if (result.ok) {
+      setSaved(result.data.bookmarked);
+      // The Saved tab and the saved-applicants count both read from the
+      // server, so refresh rather than guessing at them here.
+      router.refresh();
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      disabled={busy}
+      aria-pressed={saved}
+      className={cn(
+        "inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors disabled:opacity-60",
+        saved
+          ? "border-brand-200 bg-brand-50 text-brand-700"
+          : "border-line-strong bg-card text-ink hover:bg-card-muted",
+      )}
+    >
+      <Icon
+        name="bookmark"
+        className={cn("size-3.5", saved && "fill-current")}
+      />
+      {saved ? "Saved" : "Save"}
+    </button>
+  );
+}

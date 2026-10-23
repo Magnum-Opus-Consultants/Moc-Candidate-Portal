@@ -15,6 +15,13 @@ class User(AbstractUser):
 
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.JOB_SEEKER)
     phone = models.CharField(max_length=40, blank=True)
+    # Whether the address has been proved. A social sign-up arrives already
+    # verified — Google and LinkedIn only release addresses they have
+    # checked — so only password sign-ups start false.
+    email_verified = models.BooleanField(default=False)
+    # Set the first time a profile crosses 80%, so the Client's "CV
+    # unlocked" email goes out once rather than on every later save.
+    cv_unlocked_at = models.DateTimeField(null=True, blank=True)
     theme = models.CharField(
         max_length=10,
         choices=[("system", "System"), ("light", "Light"), ("dark", "Dark")],
@@ -812,6 +819,31 @@ class EmailTrigger(models.TextChoices):
     NEW_JOB_PUBLISHED = "new_job_published", "A new job is published"
     ACCOUNT_CREATED = "account_created", "A job seeker creates an account"
 
+    # Account and access, from the Client's automated email library. The
+    # account_created trigger covers both sign-up routes and is narrowed by
+    # a {"provider": ...} condition, because the wording differs: a password
+    # sign-up has to verify its address and a social one is already verified.
+    EMAIL_VERIFICATION_RESENT = (
+        "email_verification_resent",
+        "A verification link is requested again",
+    )
+    PASSWORD_RESET_REQUESTED = (
+        "password_reset_requested",
+        "A password reset is requested",
+    )
+    PASSWORD_CHANGED = "password_changed", "A password is changed"
+    ACCOUNT_DELETED = "account_deleted", "A job seeker deletes their account"
+
+    # Profile progress.
+    PROFILE_INCOMPLETE = (
+        "profile_incomplete",
+        "A profile is left incomplete",
+    )
+    PROFILE_CV_UNLOCKED = (
+        "profile_cv_unlocked",
+        "A profile first passes 80% and unlocks the CV",
+    )
+
 
 class AutomaticEmail(models.Model):
     """Wording hiring managers edit; sent from careers@moc-pty.com on its event.
@@ -825,7 +857,17 @@ class AutomaticEmail(models.Model):
     event = models.CharField(max_length=80, unique=True)
     label = models.CharField(max_length=160)
     subject = models.CharField(max_length=200)
+    # The line a mail client shows next to the subject. Supplied for every
+    # template in the Client's library, and worth keeping: without one the
+    # client fills the space with the first words of the body, which here
+    # is always "Hi {preferred_name},".
+    preheader = models.CharField(max_length=200, blank=True)
     body = models.TextField()
+    # Whether `body` holds HTML from the rich editor or the plain text the
+    # library was seeded with. A flag rather than sniffing for "<", because
+    # wording that legitimately contains a less-than sign should not change
+    # how it is rendered.
+    body_is_html = models.BooleanField(default=False)
     trigger = models.CharField(
         max_length=40,
         choices=EmailTrigger.choices,
@@ -853,11 +895,21 @@ class AutomaticEmail(models.Model):
         return self.label
 
     def matches(self, context: dict) -> bool:
-        """Whether this email's conditions hold for one event's context."""
-        return all(
-            str(context.get(key, "")) == str(value)
-            for key, value in (self.conditions or {}).items()
-        )
+        """Whether this email's conditions hold for one event's context.
+
+        A list value means "any of these". The Client's rejection email is
+        meant to cover an application ending without an offer whatever the
+        reason, and that is more than one status, so a condition has to be
+        able to name a set rather than a single value.
+        """
+        for key, expected in (self.conditions or {}).items():
+            actual = str(context.get(key, ""))
+            if isinstance(expected, (list, tuple, set)):
+                if actual not in {str(option) for option in expected}:
+                    return False
+            elif actual != str(expected):
+                return False
+        return True
 
 
 class EmailLog(models.Model):

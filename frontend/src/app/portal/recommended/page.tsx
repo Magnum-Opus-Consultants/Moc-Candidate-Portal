@@ -6,13 +6,12 @@ import { FilterRail } from "@/components/filter-rail";
 import {
   ActiveFilters,
   FILTER_GROUPS,
-  JobDetailPane,
-  JobResultCard,
   selectedIn,
   toggleParam,
   withParam,
   type Params,
 } from "@/components/job-board";
+import { RecommendedCard } from "@/components/recommended-card";
 import { BackendOffline, CardSkeleton } from "@/components/states";
 import { Icon } from "@/components/ui/icon";
 import { api } from "@/lib/api";
@@ -36,11 +35,19 @@ export default function RecommendedPage({
 }
 
 /**
- * Recommended Jobs, in the same two-pane shape as the public board.
+ * Recommended Jobs, as a grid of cards.
  *
- * The list and the detail pane are the board's own components rather than a
- * second set: a candidate should not have to learn a different way of
- * reading a job because they reached it from the portal.
+ * It used to be the public board's two-pane list-and-detail. The frame has a
+ * grid instead, and the grid is the better fit for what this page is for:
+ * the board is for hunting through everything, where a detail pane beside
+ * the list saves a round trip per job, while this is a short, ranked
+ * shortlist that a candidate skims to decide what is worth opening. Three
+ * across shows a whole row of options at once instead of one job and a
+ * column of titles.
+ *
+ * Each card therefore has to stand on its own, which is why it carries a
+ * description excerpt, the match reasons and the closing date rather than
+ * leaning on a pane that is no longer there.
  */
 async function Recommended({
   searchParams,
@@ -74,10 +81,6 @@ async function Recommended({
   );
 
   const { results: jobs, facets, count, ranked, has_more: hasMore } = result.data;
-
-  // Default to the first result so the detail pane is never empty on load.
-  const selected =
-    jobs.find((job) => String(job.id) === params.job) ?? jobs[0] ?? null;
 
   const disciplines = Object.keys(facets.role_category ?? {}).sort();
   const groups = [
@@ -167,7 +170,7 @@ async function Recommended({
         <ActiveFilters params={params} base={BASE} />
       </div>
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
+      <div>
         <div>
           <div className="flex flex-wrap items-baseline justify-between gap-2 pb-3">
             <h2 className="text-base font-semibold text-ink-strong">
@@ -207,14 +210,12 @@ async function Recommended({
               ) : null}
             </div>
           ) : (
-            <ol className="space-y-3">
+            <ol className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {jobs.map((job) => (
-                <li key={job.id}>
-                  <JobResultCard
+                <li key={job.id} className="h-full">
+                  <RecommendedCard
                     job={job}
-                    params={params}
-                    selected={selected?.id === job.id}
-                    base={BASE}
+                    href={`/jobs/${job.id}`}
                     saved={savedIds.has(job.id)}
                   />
                 </li>
@@ -238,14 +239,6 @@ async function Recommended({
           ) : null}
         </div>
 
-        {selected ? (
-          <div
-            id="detail"
-            className="sticky top-4 flex max-h-[calc(100dvh-2rem)] scroll-mt-4 flex-col overflow-hidden rounded-xl border border-line bg-card shadow-sm"
-          >
-            <JobDetailPane job={selected} />
-          </div>
-        ) : null}
       </div>
     </div>
   );
@@ -255,13 +248,10 @@ function RecommendedSkeleton() {
   return (
     <div className="space-y-4">
       <CardSkeleton className="h-16 rounded-xl" />
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
-        <div className="space-y-3">
-          {[0, 1, 2, 3].map((i) => (
-            <CardSkeleton key={i} className="h-52 rounded-xl" />
-          ))}
-        </div>
-        <CardSkeleton className="h-[70dvh] rounded-xl" />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {[0, 1, 2, 3, 4, 5].map((i) => (
+          <CardSkeleton key={i} className="h-64 rounded-xl" />
+        ))}
       </div>
     </div>
   );

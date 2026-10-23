@@ -10,6 +10,7 @@ import {
   AuthField,
   AuthLayout,
   AuthSubmit,
+  GoogleButton,
   LinkedInButton,
   RememberMe,
 } from "@/components/auth-layout";
@@ -24,18 +25,38 @@ import { AUTH_ERRORS } from "@/lib/auth-errors";
  * signing in the server says where that role lands, /portal or /manager,
  * unless the visitor was sent here from a page they wanted.
  */
-export function SignInForm({ linkedin = false }: { linkedin?: boolean }) {
+export function SignInForm({
+  linkedin = false,
+  google = false,
+}: {
+  linkedin?: boolean;
+  google?: boolean;
+}) {
   const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next");
   // An external sign-in that failed sends the browser back with a code.
   const failed = params.get("error");
+  // Two journeys end here rather than anywhere else, and both need saying:
+  // following a verification link, and finishing a password reset.
+  const verify = params.get("verify");
+  const reset = params.get("reset");
+  const notice =
+    verify === "ok"
+      ? "Your email address is verified. You can log in."
+      : verify
+        ? "That verification link has expired or has already been used."
+        : reset === "ok"
+          ? "Your password has been updated. Log in with your new one."
+          : null;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState<string | null>(
-    failed ? (AUTH_ERRORS[failed] ?? "Could not sign in. Please try again.") : null,
+    failed
+      ? (AUTH_ERRORS[failed] ?? "Could not sign in. Please try again.")
+      : null,
   );
   const [busy, setBusy] = useState(false);
 
@@ -74,14 +95,26 @@ export function SignInForm({ linkedin = false }: { linkedin?: boolean }) {
         </p>
       }
     >
+      {notice ? (
+        <p
+          role="status"
+          className="mt-6 rounded-lg border border-line bg-card-muted px-4 py-3 text-sm text-ink"
+        >
+          {notice}
+        </p>
+      ) : null}
+
       <AuthError message={error} />
 
-      {linkedin ? (
-        <>
-          <LinkedInButton label="Log in with LinkedIn" next={next ?? undefined} />
-          <AuthDivider />
-        </>
+      {google ? (
+        <GoogleButton label="Log in with Google" next={next ?? undefined} />
       ) : null}
+
+      {linkedin ? (
+        <LinkedInButton label="Log in with LinkedIn" next={next ?? undefined} />
+      ) : null}
+
+      {google || linkedin ? <AuthDivider /> : null}
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         <AuthField
@@ -107,7 +140,15 @@ export function SignInForm({ linkedin = false }: { linkedin?: boolean }) {
           placeholder="••••••••"
         />
 
-        <RememberMe checked={remember} onChange={setRemember} />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <RememberMe checked={remember} onChange={setRemember} />
+          <Link
+            href="/reset-password"
+            className="text-sm font-medium text-brand-700 transition-colors hover:text-brand-800"
+          >
+            Forgot password?
+          </Link>
+        </div>
 
         <AuthSubmit busy={busy} idle="Log in" working="Logging in…" />
       </form>

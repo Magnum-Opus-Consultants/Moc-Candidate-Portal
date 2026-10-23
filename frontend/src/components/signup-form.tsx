@@ -10,6 +10,7 @@ import {
   AuthField,
   AuthLayout,
   AuthSubmit,
+  GoogleButton,
   LinkedInButton,
   RememberMe,
 } from "@/components/auth-layout";
@@ -30,10 +31,13 @@ import { api } from "@/lib/api";
  */
 export function SignUpForm({
   linkedin = false,
+  google = false,
   notice = null,
 }: {
   /** Whether the backend has LinkedIn credentials configured. */
   linkedin?: boolean;
+  /** Whether the backend has Google credentials configured. */
+  google?: boolean;
   /** A failure carried back from an external sign-in round trip. */
   notice?: string | null;
 }) {
@@ -84,15 +88,21 @@ export function SignUpForm({
     >
       <AuthError message={error} />
 
-      {linkedin ? (
-        <>
-          <LinkedInButton
-            label="Sign up with LinkedIn"
-            next="/portal/profile/complete"
-          />
-          <AuthDivider />
-        </>
+      {google ? (
+        <GoogleButton
+          label="Sign up with Google"
+          next="/portal/profile/complete"
+        />
       ) : null}
+
+      {linkedin ? (
+        <LinkedInButton
+          label="Sign up with LinkedIn"
+          next="/portal/profile/complete"
+        />
+      ) : null}
+
+      {google || linkedin ? <AuthDivider /> : null}
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         <AuthField

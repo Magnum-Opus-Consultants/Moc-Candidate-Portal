@@ -4,17 +4,17 @@ import { Suspense } from "react";
 
 import { ApplicantTabs } from "@/components/applicant-tabs";
 import { JobAdminActions } from "@/components/job-admin-actions";
-import { JobChips } from "@/components/job-cards";
-import { PublishJobButton } from "@/components/publish-job-button";
+import {
+  ApplicantStats,
+  JobDetailHeader,
+} from "@/components/job-detail-header";
 import { BackendOffline, PageSkeleton } from "@/components/states";
 import { Icon } from "@/components/ui/icon";
 import {
   Button,
   Card,
-  JOB_STATUS_TONE,
-  StatusBadge,
 } from "@/components/ui/primitives";
-import { api, formatDate } from "@/lib/api";
+import { api } from "@/lib/api";
 
 export default function ManagerJobPage({
   params,
@@ -43,7 +43,7 @@ async function JobOverview({
     return <BackendOffline error={result.error} />;
   }
 
-  const { job, tabs } = result.data;
+  const { job, tabs, stats } = result.data;
 
   return (
     <div className="space-y-6">
@@ -56,90 +56,36 @@ async function JobOverview({
       </Link>
 
       {/* Job details overview header. */}
-      <Card className="p-6">
-        <div className="flex flex-wrap items-start justify-between gap-6">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-xl font-semibold tracking-tight text-ink-strong">
-                {job.title}
-              </h1>
-              <StatusBadge
-                label={job.status_label}
-                tone={JOB_STATUS_TONE[job.status] ?? "grey"}
-              />
-            </div>
-            <Link
-              href={`/manager/jobs/${job.id}/preview`}
-              className="mt-1 inline-flex items-center gap-1 text-sm text-brand-700"
-            >
-              <Icon name="expand" className="size-3.5" />
-              View as a job seeker sees it
-            </Link>
-          </div>
+      <JobDetailHeader job={job} />
 
-          <dl className="space-y-2 text-sm">
-            <div className="flex items-start gap-2">
-              <Icon name="building" className="mt-0.5 size-4 text-ink-subtle" />
-              <div>
-                <dt className="text-xs text-ink-subtle">Hiring company</dt>
-                <dd className="font-medium text-ink">{job.company}</dd>
-              </div>
-            </div>
-            <div className="flex items-start gap-2">
-              <Icon name="calendar" className="mt-0.5 size-4 text-ink-subtle" />
-              <div>
-                <dt className="text-xs text-ink-subtle">Applications close</dt>
-                <dd className="font-medium text-ink">{formatDate(job.closes_at)}</dd>
-              </div>
-            </div>
-          </dl>
-        </div>
-
-        <div className="mt-5">
-          <JobChips job={job} />
-        </div>
-
-        <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-line pt-5">
-          <PublishJobButton jobId={job.id} status={job.status} />
-          <Button
-            variant="outline"
-            size="sm"
-            href={`/manager/jobs/${job.id}/edit`}
-          >
-            <Icon name="edit" className="size-3.5" />
-            Edit
-          </Button>
-          <JobAdminActions
-            jobId={job.id}
-            title={job.title}
-            applicantCount={job.applicant_count}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            href={`/manager/jobs/${job.id}/preview`}
-          >
-            <Icon name="expand" className="size-3.5" />
-            Preview
-          </Button>
-          {job.status === "closed" ? (
-            <Button variant="success" size="sm">
-              <Icon name="refresh" className="size-3.5" />
-              Reopen job
-            </Button>
-          ) : (
-            <Button variant="danger" size="sm">
-              <Icon name="close" className="size-3.5" />
-              Close job
-            </Button>
-          )}
-          <span className="ml-auto text-xs text-ink-subtle">
-            {job.applicant_count} total · {job.new_applicant_count} new
-          </span>
-        </div>
-      </Card>
+      <ApplicantStats stats={stats} />
 
       <ApplicantTabs tabs={tabs} />
+
+      {/* Housekeeping, below the candidates. The frame gives the top of the
+          page to the posting's state and the people in it; editing, copying
+          and deleting are neither, and at the top they competed with the
+          status controls for the same glance. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="outline" size="sm" href={`/manager/jobs/${job.id}/edit`}>
+          <Icon name="edit" className="size-3.5" />
+          Edit
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          href={`/manager/jobs/${job.id}/preview`}
+        >
+          <Icon name="expand" className="size-3.5" />
+          Preview
+        </Button>
+        <JobAdminActions
+          jobId={job.id}
+          title={job.title}
+          applicantCount={job.applicant_count}
+        />
+      </div>
+
     </div>
   );
 }

@@ -1,5 +1,8 @@
 import shutil
 import tempfile
+import time
+from unittest.mock import patch
+from urllib.parse import parse_qs, urlparse
 from datetime import timedelta
 
 from django.core.mail.backends.base import BaseEmailBackend
@@ -9,6 +12,7 @@ from django.utils import timezone
 
 from .automatic_mail import emails_for, render, send_automatic_email
 from .matching import score_match
+from .middleware import LAST_ACTIVITY
 from .models import (
     Activity,
     Application,
@@ -1435,7 +1439,7 @@ class LinkedInSignInTests(TestCase):
         self.assertEqual(_safe_next("/portal/saved"), "/portal/saved")
 
     def test_an_existing_email_signs_into_that_account(self):
-        from .oauth_views import _account_for
+        from .oauth_views import LINKEDIN, _account_for
 
         existing = User.objects.create_user(
             username="sam@example.com",
@@ -1445,7 +1449,7 @@ class LinkedInSignInTests(TestCase):
         )
         info = {"given_name": "Samantha", "family_name": "Dlamini"}
 
-        user, created = _account_for(info, "sam@example.com")
+        user, created = _account_for(LINKEDIN, info, "sam@example.com")
 
         self.assertFalse(created)
         self.assertEqual(user.pk, existing.pk)
@@ -1456,10 +1460,12 @@ class LinkedInSignInTests(TestCase):
         self.assertEqual(user.last_name, "Dlamini")
 
     def test_a_new_member_gets_a_job_seeker_account_with_no_password(self):
-        from .oauth_views import _account_for
+        from .oauth_views import LINKEDIN, _account_for
 
         user, created = _account_for(
-            {"given_name": "Nomsa", "family_name": "Khumalo"}, "nomsa@example.com"
+            LINKEDIN,
+            {"given_name": "Nomsa", "family_name": "Khumalo"},
+            "nomsa@example.com",
         )
 
         self.assertTrue(created)
@@ -1468,10 +1474,12 @@ class LinkedInSignInTests(TestCase):
 
     def test_linkedin_details_land_in_the_profile_and_count(self):
         """What LinkedIn gives must show up as progress, not sit unused."""
-        from .oauth_views import _account_for
+        from .oauth_views import LINKEDIN, _account_for
 
         user, _ = _account_for(
-            {"given_name": "Thandi", "family_name": "Mabaso"}, "thandi@example.com"
+            LINKEDIN,
+            {"given_name": "Thandi", "family_name": "Mabaso"},
+            "thandi@example.com",
         )
         profile = user.profile
 
@@ -2337,3 +2345,172 @@ class JobStatusTransitionTests(TestCase):
         self.job.refresh_from_db()
 
         self.assertEqual(self.job.status, JobStatus.ACTIVE)
+
+
+class IdleSessionTests(TestCase):
+    """The inactivity sign-out, enforced server side.
+
+    The browser timer is the visible half, but it is only a courtesy — these
+    cover the half that actually ends the session.
+    """
+
+    def setUp(self):
+        self.profile = make_candidate(username="idle-seeker")
+        self.user = self.profile.user
+        self.user.set_password("correct-horse-battery")
+        self.user.save()
+        self.url = reverse("api:auth-me")
+
+    def _sign_in(self):
+        self.client.force_login(self.user)
+
+    def _stamp(self, seconds_ago: float):
+        """Backdate the last-activity marker, as idling would."""
+        session = self.client.session
+        session[LAST_ACTIVITY] = time.time() - seconds_ago
+        session.save()
+
+    @override_settings(SESSION_IDLE_SECONDS=1800)
+    def test_active_session_stays_signed_in(self):
+        self._sign_in()
+        self._stamp(60)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+
+    @override_settings(SESSION_IDLE_SECONDS=1800)
+    def test_session_past_the_window_is_signed_out(self):
+        self._sign_in()
+        self._stamp(1801)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 401)
+
+    @override_settings(SESSION_IDLE_SECONDS=1800)
+    def test_activity_pushes_the_window_out(self):
+        """Idle means idle. A request inside the window resets it, so somebody
+        reading a long job description does not get signed out at 30 minutes
+        regardless of what they were doing."""
+        self._sign_in()
+        self._stamp(1700)
+        self.client.get(self.url)
+
+        # Without the reset, 1700 + 200 would be past 1800.
+        with patch("api.middleware.time.time", return_value=time.time() + 200):
+            response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+
+    @override_settings(SESSION_IDLE_SECONDS=0)
+    def test_disabled_by_setting(self):
+        self._sign_in()
+        self._stamp(100000)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+
+    @override_settings(SESSION_IDLE_SECONDS=1800)
+    def test_anonymous_request_is_untouched(self):
+        response = self.client.get(reverse("api:job-list"))
+
+        self.assertEqual(response.status_code, 200)
+
+
+GOOGLE_ON = {
+    "GOOGLE_CLIENT_ID": "test-google-client",
+    "GOOGLE_CLIENT_SECRET": "test-google-secret",
+    "GOOGLE_REDIRECT_URI": "http://testserver/api/auth/google/callback/",
+    "FRONTEND_URL": "http://frontend.test",
+}
+
+
+class GoogleSignInTests(TestCase):
+    """Google rides the same flow as LinkedIn, so these cover what differs.
+
+    The shared machinery — state, open redirects, account matching — is
+    already covered by LinkedInSignInTests and is literally the same code.
+    """
+
+    def test_provider_is_off_without_credentials(self):
+        with self.settings(GOOGLE_CLIENT_ID="", GOOGLE_CLIENT_SECRET=""):
+            body = self.client.get(reverse("api:auth-providers")).json()
+        self.assertFalse(body["google"])
+
+    def test_provider_is_on_once_configured(self):
+        with self.settings(**GOOGLE_ON):
+            body = self.client.get(reverse("api:auth-providers")).json()
+        self.assertTrue(body["google"])
+
+    def test_start_asks_google_for_only_the_three_basic_scopes(self):
+        """Anything beyond these puts the app into verification review, which
+        is weeks of delay for data the portal does not use."""
+        with self.settings(**GOOGLE_ON):
+            response = self.client.get(reverse("api:auth-google-start"))
+
+        self.assertEqual(response.status_code, 302)
+        query = parse_qs(urlparse(response["Location"]).query)
+        self.assertEqual(set(query["scope"][0].split()), {"openid", "profile", "email"})
+
+    def test_start_lets_the_user_pick_an_account(self):
+        """Without prompt=select_account Google silently reuses the last
+        account, which on a shared machine looks like a broken button."""
+        with self.settings(**GOOGLE_ON):
+            response = self.client.get(reverse("api:auth-google-start"))
+
+        query = parse_qs(urlparse(response["Location"]).query)
+        self.assertEqual(query["prompt"], ["select_account"])
+
+    def test_start_refuses_when_unconfigured(self):
+        with self.settings(
+            GOOGLE_CLIENT_ID="",
+            GOOGLE_CLIENT_SECRET="",
+            FRONTEND_URL="http://frontend.test",
+        ):
+            response = self.client.get(reverse("api:auth-google-start"))
+
+        self.assertIn("error=google_unconfigured", response["Location"])
+
+    def test_callback_without_any_state_is_refused(self):
+        with self.settings(**GOOGLE_ON):
+            response = self.client.get(
+                reverse("api:auth-google-callback"), {"code": "abc", "state": "x"}
+            )
+
+        self.assertIn("error=google_state", response["Location"])
+
+    def test_the_same_address_on_both_providers_is_one_account(self):
+        """A Gmail address used on LinkedIn and on Google is one candidate.
+        Matching on email is what keeps it from becoming two."""
+        from .oauth_views import GOOGLE, LINKEDIN, _account_for
+
+        first, created_first = _account_for(
+            LINKEDIN, {"given_name": "Lerato", "family_name": "Molefe"}, "lerato@gmail.com"
+        )
+        second, created_second = _account_for(
+            GOOGLE, {"given_name": "Lerato", "family_name": "Molefe"}, "lerato@gmail.com"
+        )
+
+        self.assertTrue(created_first)
+        self.assertFalse(created_second)
+        self.assertEqual(first.pk, second.pk)
+        self.assertEqual(User.objects.filter(email="lerato@gmail.com").count(), 1)
+
+    def test_a_manager_signing_in_gets_no_candidate_profile(self):
+        """Accounts match on email, so a manager whose address is a Gmail
+        would otherwise end up with a candidate row behind a manager login."""
+        from .oauth_views import GOOGLE, _account_for
+
+        manager = User.objects.create_user(
+            username="boss@gmail.com",
+            email="boss@gmail.com",
+            role=Role.HIRING_MANAGER,
+        )
+
+        user, created = _account_for(GOOGLE, {"given_name": "Boss"}, "boss@gmail.com")
+
+        self.assertFalse(created)
+        self.assertEqual(user.pk, manager.pk)
+        self.assertFalse(CandidateProfile.objects.filter(user=manager).exists())

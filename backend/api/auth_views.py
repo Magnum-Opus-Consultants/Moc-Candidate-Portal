@@ -14,6 +14,7 @@ import json
 import logging
 
 from django.conf import settings
+from django.contrib.auth.tokens import default_token_generator
 from django.contrib.auth import (
     authenticate,
     login,
@@ -21,11 +22,13 @@ from django.contrib.auth import (
     update_session_auth_hash,
 )
 from django.core.mail import EmailMultiAlternatives
-from django.http import JsonResponse
+from django.http import HttpResponseRedirect, JsonResponse
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
-from .models import Role, User
+from .automatic_mail import context_for, send_automatic_email
+from .tokens import encode_uid, user_from_uid, verification_token
+from .models import EmailTrigger, Role, User
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +142,14 @@ def register(request):
     )
     login(request, user, backend=MODEL_BACKEND)
     _apply_remember(request, data.get("remember"))
-    send_welcome_email(user)
+    # The Client's library replaces the hand-written welcome note with two
+    # templates, chosen by how the account was made. "password" still has an
+    # address to verify; a social sign-up does not.
+    send_automatic_email(
+        EmailTrigger.ACCOUNT_CREATED,
+        user.email,
+        context_for(user=user, provider="password", verify_url=_verify_link(user)),
+    )
     return JsonResponse(_payload(user), status=201)
 
 
@@ -227,6 +237,15 @@ def change_password(request):
     request.user.set_password(new)
     request.user.save()
     update_session_auth_hash(request, request.user)  # stay signed in
+
+    # The Client's confirmation email. A password change the account holder
+    # did not make is the one they most need told about, so this goes out
+    # even though they are standing right there having just made it.
+    send_automatic_email(
+        EmailTrigger.PASSWORD_CHANGED,
+        request.user.email,
+        context_for(user=request.user),
+    )
     return JsonResponse({"ok": True})
 
 
@@ -237,7 +256,127 @@ def delete_account(request):
     if not request.user.is_authenticated:
         return JsonResponse({"detail": "Not signed in."}, status=401)
     user = request.user
+    # Sent before the session goes, while we still have everything the
+    # wording needs. The email explains the retention the SOW requires and
+    # how to ask for full removal.
+    send_automatic_email(
+        EmailTrigger.ACCOUNT_DELETED, user.email, context_for(user=user)
+    )
     user.is_active = False
     user.save(update_fields=["is_active"])
     logout(request)
     return JsonResponse({"ok": True})
+
+
+# --- Verifying an address, and resetting a password -----------------------
+#
+# Both flows deliberately answer the same way whether or not the address is
+# on file. "No account with that email" is a free account-existence oracle,
+# and on a careers portal that tells a stranger who has been job hunting.
+
+
+def _verify_link(user: User) -> str:
+    return (
+        f"{settings.API_BASE_URL}/api/auth/verify/"
+        f"{encode_uid(user)}/{verification_token.make_token(user)}/"
+    )
+
+
+def _reset_link(user: User) -> str:
+    return (
+        f"{settings.FRONTEND_URL}/reset-password"
+        f"?uid={encode_uid(user)}&token={default_token_generator.make_token(user)}"
+    )
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def resend_verification(request):
+    """Send another verification link."""
+    email = (_body(request).get("email") or "").strip().lower()
+    user = User.objects.filter(email__iexact=email, is_active=True).first()
+
+    if user is not None and not user.email_verified:
+        send_automatic_email(
+            EmailTrigger.EMAIL_VERIFICATION_RESENT,
+            user.email,
+            context_for(user=user, verify_url=_verify_link(user)),
+        )
+
+    return JsonResponse(
+        {"detail": "If that address has an unverified account, a link is on its way."}
+    )
+
+
+@require_http_methods(["GET"])
+def verify_email(request, uidb64: str, token: str):
+    """Follow a verification link, then hand the browser back to the portal.
+
+    A GET that changes state, because it is reached by clicking a link in
+    an email and nothing else can issue the request. The token is single
+    use: verifying flips email_verified, which is part of the hash.
+    """
+    user = user_from_uid(uidb64)
+
+    if user is None or not verification_token.check_token(user, token):
+        # Already-verified accounts land here too, because their token no
+        # longer validates — which is the right outcome, just not an error.
+        reason = "expired" if user and user.email_verified else "invalid"
+        return HttpResponseRedirect(f"{settings.FRONTEND_URL}/signin?verify={reason}")
+
+    user.email_verified = True
+    user.save(update_fields=["email_verified"])
+    return HttpResponseRedirect(f"{settings.FRONTEND_URL}/signin?verify=ok")
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def request_password_reset(request):
+    """Email a reset link, if the address has an account."""
+    email = (_body(request).get("email") or "").strip().lower()
+    user = User.objects.filter(email__iexact=email, is_active=True).first()
+
+    if user is not None and user.has_usable_password():
+        send_automatic_email(
+            EmailTrigger.PASSWORD_RESET_REQUESTED,
+            user.email,
+            context_for(user=user, reset_url=_reset_link(user)),
+        )
+
+    return JsonResponse(
+        {"detail": "If that address has an account, a reset link is on its way."}
+    )
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def confirm_password_reset(request):
+    """Set a new password from a reset link."""
+    data = _body(request)
+    user = user_from_uid(data.get("uid") or "")
+    token = data.get("token") or ""
+    new = data.get("new_password") or ""
+
+    if user is None or not default_token_generator.check_token(user, token):
+        return JsonResponse(
+            {"detail": "That reset link has expired. Please request a new one."},
+            status=400,
+        )
+    if len(new) < 8:
+        return JsonResponse(
+            {"detail": "New password must be at least 8 characters."}, status=400
+        )
+
+    user.set_password(new)
+    user.save(update_fields=["password"])
+
+    # Resetting a password proves the address as surely as a verification
+    # link does: the link only reached them because the mailbox is theirs.
+    if not user.email_verified:
+        user.email_verified = True
+        user.save(update_fields=["email_verified"])
+
+    send_automatic_email(
+        EmailTrigger.PASSWORD_CHANGED, user.email, context_for(user=user)
+    )
+    return JsonResponse({"detail": "Your password has been updated. You can sign in."})

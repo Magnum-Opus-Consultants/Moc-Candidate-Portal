@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { SidebarLayout } from "@/components/collapsible-sidebar";
+import { IdleTimeout } from "@/components/idle-timeout";
 import { LogoutButton } from "@/components/logout-button";
 import { NavLink } from "@/components/nav-link";
 import { Icon } from "@/components/ui/icon";
@@ -40,31 +41,42 @@ export function ManagerShell({
   sidebar: ReactNode;
 }) {
   return (
-    <SidebarLayout
-      storageKey="moc:manager-sidebar"
-      sidebar={sidebar}
-      sidebarClassName="bg-sidebar"
-      width="w-72"
-      label="jobs sidebar"
-      nav={TOP_NAV.map((item) => (
-        <NavLink
-          key={item.href}
-          href={item.href}
-          variant="tab"
-          exact={item.exact}
-        >
-          {item.label}
-        </NavLink>
-      ))}
-    >
-      {children}
-    </SidebarLayout>
+    <>
+      <IdleTimeout />
+      <SidebarLayout
+        storageKey="moc:manager-sidebar"
+        sidebar={sidebar}
+        sidebarClassName="bg-sidebar"
+        width="w-72"
+        label="jobs sidebar"
+        nav={TOP_NAV.map((item) => (
+          <NavLink
+            key={item.href}
+            href={item.href}
+            variant="tab"
+            exact={item.exact}
+          >
+            {item.label}
+          </NavLink>
+        ))}
+      >
+        {children}
+      </SidebarLayout>
+    </>
   );
 }
 
-function JobLinks({ jobs, emptyLabel }: { jobs: SidebarJob[]; emptyLabel: string }) {
+function JobLinks({
+  jobs,
+  emptyLabel,
+}: {
+  jobs: SidebarJob[];
+  emptyLabel: string;
+}) {
   if (jobs.length === 0) {
-    return <p className="px-3 py-2 text-xs text-sidebar-ink-muted">{emptyLabel}</p>;
+    return (
+      <p className="px-3 py-2 text-xs text-sidebar-ink-muted">{emptyLabel}</p>
+    );
   }
   return (
     <ul className="space-y-0.5">
@@ -173,7 +185,10 @@ export async function ManagerSidebar() {
         <Section label="Open Jobs">
           {/* A real form. It had no form around it and no name, so typing
               in it and pressing Enter did nothing at all. */}
-          <form action="/manager/jobs" className="flex items-center gap-1.5 px-2 pb-2">
+          <form
+            action="/manager/jobs"
+            className="flex items-center gap-1.5 px-2 pb-2"
+          >
             <label className="relative block min-w-0 flex-1">
               <span className="sr-only">Search jobs</span>
               <Icon
