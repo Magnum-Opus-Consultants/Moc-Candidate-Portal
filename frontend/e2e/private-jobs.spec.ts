@@ -67,12 +67,33 @@ async function onPublicBoard(page: Page): Promise<boolean> {
  * the pair is the honest fix: it waits for the app to actually be usable,
  * rather than sleeping and hoping.
  */
-async function clickUntil(page: Page, name: RegExp, expectation: () => Promise<void>) {
-  const button = page.getByRole("button", { name }).first();
+async function clickUntil(
+  page: Page,
+  name: RegExp,
+  expectation: () => Promise<void>,
+  role: "button" | "option" = "button",
+) {
+  const button = page.getByRole(role, { name }).first();
   await expect(button).toBeVisible({ timeout: 60_000 });
   await expect(async () => {
     await button.click({ timeout: 10_000 });
     await expectation();
+  }).toPass({ timeout: 120_000 });
+}
+
+
+/**
+ * Open the JOB STATUS dropdown.
+ *
+ * Its trigger is labelled with the posting's current status, so there is
+ * no fixed name to look for — the listbox role is what identifies it.
+ */
+async function openStatusMenu(page: Page) {
+  const trigger = page.locator('button[aria-haspopup="listbox"]').first();
+  await expect(trigger).toBeVisible({ timeout: 60_000 });
+  await expect(async () => {
+    await trigger.click({ timeout: 10_000 });
+    await expect(page.getByRole("listbox")).toBeVisible({ timeout: 3_000 });
   }).toPass({ timeout: 120_000 });
 }
 
@@ -135,13 +156,22 @@ test("the manager can make it private from the posting page", async ({ page }) =
   await signIn(page, MANAGER);
   await page.goto(`/manager/jobs/${jobId}`);
 
-  await clickUntil(page, /make private/i, async () => {
-    await expect(
-      page.getByRole("button", { name: /yes, make private/i }),
-    ).toBeVisible({ timeout: 5_000 });
-  });
+  // The status moves live inside the JOB STATUS dropdown now, so it has to
+  // be opened before "Make private" exists to click.
+  await openStatusMenu(page);
 
-  await page.getByRole("button", { name: /yes, make private/i }).click();
+  await clickUntil(
+    page,
+    /^private$/i,
+    async () => {
+      await expect(
+        page.getByRole("button", { name: /yes, private/i }),
+      ).toBeVisible({ timeout: 5_000 });
+    },
+    "option",
+  );
+
+  await page.getByRole("button", { name: /yes, private/i }).click();
   await expect(page.getByText("Private", { exact: true }).first()).toBeVisible();
 });
 
@@ -182,11 +212,20 @@ test("it can be put back on the board", async ({ page }) => {
   await signIn(page, MANAGER);
   await page.goto(`/manager/jobs/${jobId}`);
 
-  await clickUntil(page, /publish job/i, async () => {
-    await expect(page.getByText("Active", { exact: true }).first()).toBeVisible({
-      timeout: 10_000,
-    });
-  });
+  // Publishing is a choice in the same dropdown: from the manager's side
+  // it is the same question — what state is this posting in.
+  await openStatusMenu(page);
+
+  await clickUntil(
+    page,
+    /^active$/i,
+    async () => {
+      await expect(
+        page.getByRole("button", { name: /^active$/i }),
+      ).toBeVisible({ timeout: 10_000 });
+    },
+    "option",
+  );
 
   expect(
     await onPublicBoard(page),
