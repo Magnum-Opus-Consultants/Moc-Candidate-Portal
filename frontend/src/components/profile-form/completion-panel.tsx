@@ -54,36 +54,48 @@ export function CompletionPanel({
        * header, and max-height + overflow keep the panel usable on a short
        * window — without them a tall panel pins with its foot, and the Save
        * button ends up below the fold.
+       *
+       * The grey trough and 16px radius are the frame's: the panel is a
+       * block beside the form, not another white card like the sections it
+       * is listing.
        */
-      className="rounded-2xl border border-line bg-card p-6 lg:sticky lg:top-[76px] lg:max-h-[calc(100dvh-100px)] lg:overflow-y-auto"
+      className="rounded-2xl bg-trough px-6 py-8 lg:sticky lg:top-[76px] lg:max-h-[calc(100dvh-100px)] lg:overflow-y-auto"
     >
-      <h2 className="text-lg font-semibold text-ink-strong">Completion progress</h2>
+      <div className="space-y-4">
+        <h2 className="text-center text-2xl font-semibold leading-8 text-ink-strong">
+          Completion progress
+        </h2>
+        <hr className="border-t-2 border-line-strong" />
+      </div>
 
-      <div className="mt-5 flex justify-center">
+      <div className="mt-6 flex flex-col items-center gap-6">
         <ProgressCircle
           value={completion}
-          size="xl"
+          size="3xl"
+          tone="trough"
           label="Profile completion"
           title="Profile completion"
         />
+
+        {/* The status pill: a light capsule carrying the label and the
+            strength badge, rather than a plain row on the panel. */}
+        <div className="flex w-full items-center justify-between gap-2 rounded-2xl bg-card py-1 pl-3 pr-1">
+          <span className="text-xs font-medium text-ink-muted">Profile status</span>
+          <StatusBadge label={tone.label} tone={tone.tone} />
+        </div>
       </div>
 
-      <div className="mt-5 flex items-center justify-between gap-3 border-t border-line pt-4">
-        <span className="text-xs text-ink-muted">Profile status</span>
-        <StatusBadge label={tone.label} tone={tone.tone} />
-      </div>
-
-      <ul className="mt-4 space-y-2.5">
+      <ul className="mt-6 space-y-2">
         {sections.map((section) => (
           <li key={section.slug}>
             <a
               href={`#${section.slug}`}
-              className="flex items-center gap-2.5 text-sm text-ink-muted transition-colors hover:text-ink"
+              className="flex items-center gap-2 text-sm font-semibold text-ink-muted transition-colors hover:text-ink-strong"
             >
               <span
                 aria-hidden
                 className={cn(
-                  "size-2 shrink-0 rounded-full",
+                  "size-2.5 shrink-0 rounded-full",
                   section.completed
                     ? "bg-status-green"
                     : section.progress > 0
@@ -93,7 +105,9 @@ export function CompletionPanel({
               />
               <span className="flex-1">{section.label}</span>
               {section.progress > 0 && !section.completed ? (
-                <span className="text-xs text-ink-subtle">{section.progress}%</span>
+                <span className="text-xs font-normal text-ink-subtle">
+                  {section.progress}%
+                </span>
               ) : null}
             </a>
           </li>
@@ -104,7 +118,7 @@ export function CompletionPanel({
         type="button"
         onClick={onSave}
         disabled={saving || !dirty}
-        className="mt-5 w-full rounded-lg bg-brand-700 px-4 py-2.5 text-sm font-medium text-brand-ink transition-colors hover:bg-brand-800 disabled:bg-brand-100 disabled:text-brand-300"
+        className="mt-6 w-full rounded-lg border border-brand-secondary bg-brand-secondary px-3.5 py-2 text-sm font-semibold text-brand-secondary-ink shadow-xs transition-colors hover:border-brand-secondary-hover hover:bg-brand-secondary-hover disabled:border-line-strong disabled:bg-line-strong disabled:text-ink-subtle"
       >
         {/* "Saved" only once something actually has been — before the first
             edit the button is simply disabled. */}

@@ -104,7 +104,7 @@ export function SignUpForm({
 
       {google || linkedin ? <AuthDivider /> : null}
 
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+      <form method="post" onSubmit={handleSubmit} className="mt-6 space-y-4">
         <AuthField
           label="Email"
           id="email"

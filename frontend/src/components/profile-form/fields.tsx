@@ -31,7 +31,7 @@ export function Label({
   htmlFor?: string;
 }) {
   return (
-    <label htmlFor={htmlFor} className="block text-xs font-medium text-ink-muted">
+    <label htmlFor={htmlFor} className="block text-sm font-medium leading-5 text-ink-muted">
       {children}
       {required ? (
         <span className="text-status-rose" aria-hidden>
@@ -43,7 +43,8 @@ export function Label({
 }
 
 const CONTROL =
-  "mt-1.5 w-full rounded-lg border border-line bg-card px-3 py-2.5 text-sm text-ink " +
+  "mt-1.5 w-full rounded-lg border border-line-strong bg-card px-3.5 py-2.5 " +
+  "text-base leading-6 text-ink shadow-xs " +
   "placeholder:text-ink-subtle focus:border-brand-500 focus:outline-none focus:ring-2 " +
   "focus:ring-brand-100 disabled:bg-card-muted";
 
@@ -64,7 +65,10 @@ export function Field({
   type?: string;
   id?: string;
 }) {
-  const fieldId = id ?? label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  // Derived from the label, this collides whenever two controls share a
+  // label - three "Proficiency" selects on the profile form all answered
+  // to the same id, so two of the three labels focused the wrong one.
+  const fieldId = id ?? useId();
   return (
     <div>
       <Label htmlFor={fieldId} required={required}>
@@ -114,7 +118,7 @@ export function Select({
   className?: string;
 }) {
   const generated = useId();
-  const fieldId = id ?? label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const fieldId = id ?? generated;
   const listId = `${generated}-list`;
 
   const [open, setOpen] = useState(false);
@@ -381,7 +385,8 @@ export function TextArea({
   rows?: number;
   id?: string;
 }) {
-  const fieldId = id ?? (label ?? "notes").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const generated = useId();
+  const fieldId = id ?? generated;
   return (
     <div>
       {label ? <Label htmlFor={fieldId}>{label}</Label> : null}
@@ -414,7 +419,7 @@ export function RadioGroup({
 }) {
   return (
     <fieldset>
-      <legend className="text-xs font-medium text-ink-muted">
+      <legend className="text-sm font-medium leading-5 text-ink-muted">
         {legend}
         {required ? (
           <span className="text-status-rose" aria-hidden>
@@ -444,6 +449,21 @@ export function RadioGroup({
   );
 }
 
+/**
+ * The tick inside a checked box.
+ *
+ * `accent-color` on a native checkbox only recolours the browser's own square
+ * mark - it cannot give it the 4px radius or the brand outline the design
+ * system draws. `appearance-none` plus this mark does, and the control stays
+ * a real <input type="checkbox">, so keyboard and screen readers are
+ * unchanged.
+ */
+const TICK =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' " +
+  "viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M13 4.5 6.5 11 3 7.5' " +
+  "stroke='%23064b70' stroke-width='2' stroke-linecap='round' " +
+  "stroke-linejoin='round'/%3E%3C/svg%3E\")";
+
 export function Checkbox({
   label,
   checked,
@@ -459,7 +479,8 @@ export function Checkbox({
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="mt-0.5 size-4 accent-brand-700"
+        className="mt-0.5 size-4 shrink-0 appearance-none rounded border border-brand-700 bg-card bg-center bg-no-repeat transition-colors checked:bg-brand-secondary-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+        style={checked ? { backgroundImage: TICK } : undefined}
       />
       {label}
     </label>

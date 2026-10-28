@@ -13,23 +13,25 @@
 
 :root {
   /* Surfaces */
-  --canvas: #f5f5f5;
-  --card: #ffffff;
+  --canvas: #f3f4f6;
+  --card: #f9fbfb;
   --card-muted: #f7f9fa;
   /* The grey the frame sets behind grouped cards, so a band of them reads
      as one block. --card-muted is too close to white to do this job. */
   --trough: #e5e7eb;
-  --line: #e4e7ea;
+  --line: #e5e7eb;
   /* The hairline between rows inside a panel, lighter than the panel's own
      edge so a long list does not read as a grid. */
   --line-soft: #f1f3f4;
-  --line-strong: #cbd2d8;
+  --line-strong: #d5dbde;
 
   /* Ink */
-  --ink: #1d2b36;
-  --ink-strong: #0d1b26;
-  --ink-muted: #56666f;
-  --ink-subtle: #64737e;
+  --ink: #1d2533;
+  --ink-body: #374151;
+  --ink-strong: #08151c;
+  --ink-muted: #4b5563;
+  --ink-subtle: #6b7280;
+  --ink-faint: #9ca3af;
 
   /* Brand */
   --brand-50: #f2f7f9;
@@ -39,14 +41,22 @@
   --brand-400: #5e95a9;
   --brand-500: #35758f;
   --brand-600: #155e7e;
-  --brand-700: #054b70; /* site primary */
-  --brand-800: #053e5c;
+  --brand-700: #064b70; /* site primary */
+  --brand-800: #073c58;
   --brand-900: #04304a;
+  /* Brand/Secondary/400 - main, from the design system frame. The rail's
+     New Job button and the profile panel's Save both use it. */
+  --brand-secondary-50: #f1f9fa;
+  --brand-secondary-100: #dcedf1;
+  --brand-secondary-200: #bedbe3;
+  --brand-secondary: #589db2;
+  --brand-secondary-hover: #4a8a9e;
+  --brand-secondary-ink: #f9fbfb;
 
   /* The manager rail, sampled from the approved frame. Near-black with a
      blue cast, not the brand navy — and fixed in both themes, because
      brand-900 inverts for dark mode, which turned the rail near-white. */
-  --sidebar: #09151c;
+  --sidebar: #08151c;
   --sidebar-hover: #1e2532;
   --sidebar-line: #1b272e;
   /* Fixed like the rail itself: --brand-ink flips dark for dark
@@ -56,8 +66,8 @@
   --sidebar-ink-muted: #92989d;
   /* The rail's own two buttons, which are not the page's brand blue:
      a muted teal for New Job and a slate for View all jobs. */
-  --sidebar-accent: #5d9cb1;
-  --sidebar-accent-hover: #6fa9bd;
+  --sidebar-accent: var(--brand-secondary);
+  --sidebar-accent-hover: var(--brand-secondary-hover);
   --sidebar-surface: #384150;
   --sidebar-surface-hover: #434d5d;
   --brand-ink: #e9f1f5;
@@ -101,10 +111,13 @@
   /* Status */
   --green: #15803d;
   --green-bg: #dcfce7;
-  --orange: #c2620b;
-  --orange-bg: #ffeeda;
-  --purple: #7e22ce;
-  --purple-bg: #f4e8ff;
+  /* Orange/700, not the frame's Orange/600 (#EA580C): that is 3.1:1 on
+     the Orange/100 pill and fails AA for 12px text. This is the next
+     step down the same scale and clears it at 4.5:1. */
+  --orange: #c2410c;
+  --orange-bg: #ffedd5;
+  --purple: #9333ea;
+  --purple-bg: #f3e8ff;
   --grey: #5b6b76;
   --grey-bg: #eef1f3;
   --yellow: #a16207;
@@ -131,9 +144,11 @@
     --line-strong: #44677d;
 
     --ink: #e4edf2;
+    --ink-body: #c3d3dc;
     --ink-strong: #f2f7fa;
     --ink-muted: #9db1bd;
     --ink-subtle: #768c99;
+    --ink-faint: #5e7381;
 
     --applied-bg: #162936;
     --applied-ink: #5c7382;
@@ -151,6 +166,12 @@
   --brand-ink: #08202c;
     --brand-800: #c3dde5;
     --brand-900: #dcebf0;
+    --brand-secondary-50: #10323c;
+    --brand-secondary-100: #17414e;
+    --brand-secondary-200: #1f5566;
+    --brand-secondary: #4a8a9e;
+    --brand-secondary-hover: #589db2;
+    --brand-secondary-ink: #08151c;
 
     --band: #233442;
 
@@ -181,9 +202,11 @@
   --line-strong: #44677d;
 
   --ink: #e4edf2;
+  --ink-body: #c3d3dc;
   --ink-strong: #f2f7fa;
   --ink-muted: #9db1bd;
   --ink-subtle: #768c99;
+  --ink-faint: #5e7381;
 
   --applied-bg: #162936;
   --applied-ink: #5c7382;
@@ -201,6 +224,12 @@
   --brand-ink: #08202c;
   --brand-800: #c3dde5;
   --brand-900: #dcebf0;
+  --brand-secondary-50: #10323c;
+  --brand-secondary-100: #17414e;
+  --brand-secondary-200: #1f5566;
+  --brand-secondary: #4a8a9e;
+  --brand-secondary-hover: #589db2;
+  --brand-secondary-ink: #08151c;
 
   --band: #233442;
 
@@ -228,9 +257,11 @@
   --color-line-strong: var(--line-strong);
 
   --color-ink: var(--ink);
+  --color-ink-body: var(--ink-body);
   --color-ink-strong: var(--ink-strong);
   --color-ink-muted: var(--ink-muted);
   --color-ink-subtle: var(--ink-subtle);
+  --color-ink-faint: var(--ink-faint);
 
   --color-brand-50: var(--brand-50);
   --color-brand-100: var(--brand-100);
@@ -251,6 +282,12 @@
   --color-sidebar-line: var(--sidebar-line);
   --color-sidebar-ink: var(--sidebar-ink);
   --color-sidebar-ink-muted: var(--sidebar-ink-muted);
+  --color-brand-secondary-50: var(--brand-secondary-50);
+  --color-brand-secondary-100: var(--brand-secondary-100);
+  --color-brand-secondary-200: var(--brand-secondary-200);
+  --color-brand-secondary: var(--brand-secondary);
+  --color-brand-secondary-hover: var(--brand-secondary-hover);
+  --color-brand-secondary-ink: var(--brand-secondary-ink);
   --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-accent-hover: var(--sidebar-accent-hover);
   --color-sidebar-surface: var(--sidebar-surface);

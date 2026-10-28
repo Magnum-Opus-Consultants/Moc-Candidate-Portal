@@ -30,6 +30,7 @@ from .models import (
     JobStatus,
     Role,
     User,
+    WorkExperience,
     WorkSetup,
 )
 
@@ -1187,6 +1188,125 @@ class BrandedCvTests(TestCase):
         make_candidate(section_progress=self.FULL)
         response = self.client.get(reverse("api:candidate-cv"))
         self.assertIn(response.status_code, (401, 403))
+
+    # --- the branded layout -------------------------------------------
+
+    ASSESSMENT = {
+        "matching": {"english": 9, "requirement": 8, "experience": 7, "client": 9},
+        "traits": {
+            "extraverted": {"percent": 67, "note": "Comfortable with clients."},
+            "thinking": {"percent": 59, "note": "Leans to logic."},
+        },
+    }
+
+    @staticmethod
+    def _pages(profile):
+        """The rendered PDF, as (text, pixmap) per page."""
+        import pymupdf
+
+        from .cv import build_cv
+
+        doc = pymupdf.open(stream=build_cv(profile), filetype="pdf")
+        return [
+            (page.get_text(), page.get_pixmap(matrix=pymupdf.Matrix(2, 2)))
+            for page in doc
+        ]
+
+    def test_the_scored_blocks_are_left_out_until_someone_scores_them(self):
+        """A blank scale reads as a zero, so an unassessed profile omits it."""
+        profile = make_candidate(section_progress=self.FULL, summary="A summary.")
+
+        text = self._pages(profile)[0][0]
+
+        self.assertNotIn("MATCHING CRITERIA", text)
+        self.assertNotIn("PERSONALITY TRAITS", text)
+
+    def test_the_scored_blocks_appear_once_assessed(self):
+        profile = make_candidate(
+            section_progress=self.FULL, assessment=self.ASSESSMENT
+        )
+
+        text = self._pages(profile)[0][0]
+
+        self.assertIn("MATCHING CRITERIA", text)
+        self.assertIn("English proficiency", text)
+        self.assertIn("PERSONALITY TRAITS", text)
+        self.assertIn("67% Extraverted", text)
+        # Only the two traits that were scored.
+        self.assertNotIn("Judging", text)
+
+    def test_a_trait_marker_sits_towards_the_pole_it_names(self):
+        """67% Extraverted is a third in from the Extraverted end, not two.
+
+        The rule runs from the first pole to the second, so a high reading
+        pulls the marker towards the left - getting this backwards would
+        describe every candidate as their own opposite.
+        """
+        profile = make_candidate(
+            section_progress=self.FULL, assessment=self.ASSESSMENT
+        )
+        rule_x, rule_w = 240.9, 331.3
+
+        pixmap = self._pages(profile)[0][1]
+        accent = {(139, 183, 196), (138, 182, 195), (139, 182, 195)}
+        found = None
+        for y in range(int(500 * 2), int(512 * 2)):
+            xs = [
+                x / 2
+                for x in range(int(rule_x * 2), int((rule_x + rule_w) * 2))
+                if pixmap.pixel(x, y)[:3] in accent
+            ]
+            if xs:
+                found = (min(xs) + max(xs)) / 2
+                break
+
+        self.assertIsNotNone(found, "no marker drawn on the first trait")
+        along = (found - rule_x) / rule_w * 100
+        self.assertAlmostEqual(along, 33, delta=2)
+
+    def test_a_long_history_runs_onto_another_page(self):
+        """Roles past the first page continue rather than falling off it."""
+        profile = make_candidate(section_progress=self.FULL)
+        for n in range(9):
+            WorkExperience.objects.create(
+                profile=profile,
+                job_title=f"Operations Lead {n}",
+                company_name=f"Employer {n}",
+                start_date=timezone.now().date() - timedelta(days=900 - n * 90),
+                end_date=timezone.now().date() - timedelta(days=800 - n * 90),
+                key_responsibilities=[f"Did the work, item {i}." for i in range(8)],
+                position=n,
+            )
+
+        pages = self._pages(profile)
+
+        self.assertGreater(len(pages), 2)
+        for text, _ in pages[1:]:
+            self.assertIn("OPERATIONS TEAM | MOC", text)
+        self.assertIn("Operations Lead 8", "".join(t for t, _ in pages))
+
+    def test_a_profile_without_a_photo_still_renders(self):
+        profile = make_candidate(section_progress=self.FULL)
+        self.assertFalse(profile.photo)
+
+        pages = self._pages(profile)
+
+        self.assertGreaterEqual(len(pages), 2)
+
+    def test_a_long_name_is_stepped_down_rather_than_clipped(self):
+        profile = make_candidate(section_progress=self.FULL)
+        profile.user.first_name = "Nomalanga Siphokazi"
+        profile.user.last_name = "Ramaphosa-Oosthuizen"
+        profile.user.save()
+
+        pixmap = self._pages(profile)[0][1]
+
+        # The navy band ends at x=595.5pt; nothing may be drawn past it.
+        name_row = [
+            pixmap.pixel(int(x * 2), int(70 * 2))[:3]
+            for x in range(576, 595)
+        ]
+        self.assertTrue(all(px != (255, 255, 255) for px in name_row))
 
     def test_a_hiring_manager_cannot_use_the_seeker_cv_route(self):
         manager = User.objects.create_user(

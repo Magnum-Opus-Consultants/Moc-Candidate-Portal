@@ -58,6 +58,14 @@ async function JobOverview({
           and deleting are neither, and at the top they competed with the
           status controls for the same glance. */}
       <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          href={`/manager/jobs/${job.id}/details`}
+        >
+          <Icon name="list" className="size-3.5" />
+          Job details
+        </Button>
         <Button variant="outline" size="sm" href={`/manager/jobs/${job.id}/edit`}>
           <Icon name="edit" className="size-3.5" />
           Edit

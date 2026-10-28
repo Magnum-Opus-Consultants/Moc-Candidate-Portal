@@ -57,7 +57,7 @@ export function ManagerShell({
         storageKey="moc:manager-sidebar"
         sidebar={sidebar}
         sidebarClassName="bg-sidebar"
-        width="w-72"
+        width="w-61"
         label="jobs sidebar"
       >
         {children}

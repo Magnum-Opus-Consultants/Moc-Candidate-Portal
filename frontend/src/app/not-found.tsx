@@ -1,10 +1,7 @@
 import type { Metadata } from "next";
 
-import {
-  MessageAction,
-  MessageLink,
-  MessagePage,
-} from "@/components/message-page";
+import { SystemAction, SystemPage } from "@/components/system-page";
+import { Icon } from "@/components/ui/icon";
 
 export const metadata: Metadata = {
   title: "Page not found",
@@ -14,39 +11,34 @@ export const metadata: Metadata = {
 /**
  * 404.
  *
- * Offers the two things somebody who lands here actually wants — the job
- * board, or their own portal — rather than only apologising. A dead end
- * with no way onward is the real failure, not the missing URL.
+ * The copy is deliberately role-neutral, per the design's developer notes:
+ * this page is shared by the candidate and hiring-manager portals and by
+ * signed-out visitors, so it cannot name a dashboard, a job list or a
+ * profile. "Go to home page" lands on the public board, which every one of
+ * those three can use and which routes a signed-in reader onward.
+ *
+ * Support is offered only in the header, as the notes require, and the
+ * mail link carries the subject so nobody has to describe the problem.
  */
 export default function NotFound() {
   return (
-    <MessagePage
-      eyebrow="Error 404"
-      title="We could not find that page"
+    <SystemPage
+      back
+      numeral="404"
+      title="Page not found"
+      supportSubject="Page not found on the MOC Candidate Portal"
       body={
         <>
-          The page you are looking for does not exist or has moved. The link
-          may be out of date, or a position may have closed and been taken
-          down since you last saw it.
+          This page doesn&rsquo;t exist or may have been moved.
+          <br />
+          Go back to where you were, or head to your home page.
         </>
       }
       actions={
-        <>
-          <MessageAction href="/">Browse open positions</MessageAction>
-          <MessageLink href="/portal">Go to my portal</MessageLink>
-        </>
-      }
-      footnote={
-        <>
-          If you believe this is an error, please contact{" "}
-          <a
-            href="mailto:careers@moc-pty.com"
-            className="font-medium text-brand-700 underline underline-offset-4 hover:text-brand-800"
-          >
-            careers@moc-pty.com
-          </a>
-          .
-        </>
+        <SystemAction href="/">
+          <Icon name="home" className="size-5" />
+          Go to home page
+        </SystemAction>
       }
     />
   );

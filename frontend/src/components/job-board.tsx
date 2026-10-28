@@ -233,7 +233,9 @@ export function JobResultCard({
         </span>
       </div>
 
-      <h3 className="mt-2 text-[17px] font-semibold leading-snug text-ink-strong">
+      {/* break-words: a title with no spaces in it — a pasted URL, a long
+          compound word — cannot wrap, and bursts the card on a phone. */}
+      <h3 className="mt-2 text-[17px] font-semibold leading-snug break-words text-ink-strong">
         <Link
           href={selectJobHref(params, job.id, base)}
           scroll={false}
@@ -411,7 +413,7 @@ export function JobDetailPane({ job }: { job: Job }) {
       <div className="border-b border-line px-7 py-6">
         {/* No job ID here: it is an internal row number, not something a
             candidate quotes or searches for. */}
-        <h2 className="text-2xl font-semibold leading-tight tracking-tight text-ink-strong">
+        <h2 className="text-2xl font-semibold leading-tight tracking-tight break-words text-ink-strong">
           {job.title}
         </h2>
 

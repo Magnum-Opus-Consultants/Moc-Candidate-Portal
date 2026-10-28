@@ -240,6 +240,18 @@ class CandidateProfile(models.Model):
     sharing_agreed = models.BooleanField(default=False)
 
     # Percentage complete per section, keyed by the slugs in PROFILE_SECTIONS.
+    # The consultant's read on a candidate, for the two scoring blocks on the
+    # branded profile: four matching scores out of ten, and four personality
+    # dichotomies as a percentage towards the first pole.
+    #
+    #   {"matching": {"english": 9, ...},
+    #    "traits": {"extraverted": {"percent": 67, "note": "..."}, ...}}
+    #
+    # Filled by the operations team after they have met the candidate, not by
+    # the candidate. Empty until then, and the profile omits whichever block
+    # has no scores rather than printing a placeholder - a blank scale reads
+    # as a zero, and an invented one is worse.
+    assessment = models.JSONField(default=dict, blank=True)
     section_progress = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

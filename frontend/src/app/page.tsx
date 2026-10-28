@@ -321,7 +321,12 @@ async function Results({
       </div>
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
-        <div>
+        {/* min-w-0: a grid item defaults to min-width:auto and so refuses to
+            shrink below its content. The sort row below cannot wrap, so
+            without this the column is forced to its 392px intrinsic width
+            and the whole page scrolls sideways on a phone. The lg track
+            uses minmax(0,…) for the same reason. */}
+        <div className="min-w-0">
           <div className="flex flex-wrap items-baseline justify-between gap-2 pb-3">
             <h1 className="text-xl font-semibold tracking-tight text-ink-strong">
               {searched ? (
@@ -335,7 +340,7 @@ async function Results({
               )}
             </h1>
 
-            <div className="flex items-center gap-1 text-sm">
+            <div className="flex flex-wrap items-center gap-1 text-sm">
               <span className="text-ink-subtle">Sort by</span>
               {(
                 [

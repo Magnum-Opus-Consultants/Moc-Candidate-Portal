@@ -88,6 +88,8 @@ export type Job = {
   salary_max: string | null;
   salary_period: string;
   benefits: string[];
+  /** Who the posting belongs to, for "Last edited by". */
+  created_by_name?: string;
 
   match?: Match;
   saved_at?: string;

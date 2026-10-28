@@ -9,7 +9,7 @@ import {
   Button,
   EmptyState,
   PageHeading,
-  StatCard,
+  JobOverviewStat,
   cn,
 } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
@@ -82,48 +82,35 @@ async function AllJobs({
       <PageHeading
         title="All jobs"
         subtext="Get an overview of your job vacancies, application activity and candidates requiring review"
-        action={
-          <Button href="/manager/jobs/new" size="sm">
-            <Icon name="plus" className="size-3.5" />
-            New Job
-          </Button>
-        }
       />
 
       {/* The overview row from the designs. Each tile leads to the list it
           counts — a number a manager cannot act on is decoration. */}
-      <div className="grid gap-3 rounded-2xl bg-card-muted p-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
+      <div className="flex flex-col gap-4 sm:flex-row">
+        <JobOverviewStat
           href={href({ status: "active", show: undefined })}
           value={active.toLocaleString("en-ZA")}
           title="Active jobs"
           supporting="Accepting applications"
-          tone="green"
-          icon={<Icon name="archive" className="size-5" />}
         />
-        <StatCard
+        <JobOverviewStat
           href={href({ status: undefined, show: undefined })}
           value={open.toLocaleString("en-ZA")}
           title="Open jobs"
-          supporting="All statuses except closed"
-          tone="teal"
-          icon={<Icon name="grid" className="size-5" />}
+          supporting="All statuses"
         />
-        <StatCard
+        <JobOverviewStat
           href="/manager/candidates"
           value={(applicants?.total_applicants ?? 0).toLocaleString("en-ZA")}
           title="Total applicants"
           supporting="Across all open jobs"
-          tone="info"
-          icon={<Icon name="users" className="size-5" />}
         />
-        <StatCard
+        <JobOverviewStat
           href="/manager/candidates"
           value={(applicants?.new_applicants ?? 0).toLocaleString("en-ZA")}
           title="New applicants"
           supporting="To be reviewed"
-          tone="yellow"
-          icon={<Icon name="bell" className="size-5" />}
+          emphasis
         />
       </div>
 
@@ -132,29 +119,32 @@ async function AllJobs({
           <span className="sr-only">Search job title or keyword</span>
           <Icon
             name="search"
-            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-subtle"
+            className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-ink-faint"
           />
           <input
             type="search"
             name="search"
             defaultValue={params.search ?? ""}
             placeholder="Search job title or keyword"
-            className="w-full rounded-lg border border-line bg-card py-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-subtle focus:border-brand-500 focus:outline-none"
+            className="w-full rounded-lg border border-line-strong bg-card py-2.5 pl-11 pr-3.5 text-base leading-6 text-ink shadow-xs placeholder:text-ink-faint focus:border-brand-500 focus:outline-none"
           />
         </label>
         {status !== "all" ? (
           <input type="hidden" name="status" value={status} />
         ) : null}
-        <Button size="sm">Search</Button>
+        {/* The frame has no search button; Enter submits, and this keeps the
+            form working for anyone navigating it by keyboard or without JS. */}
+        <button type="submit" className="sr-only">
+          Search
+        </button>
 
         <Link
           href={href({ status: "closed", show: undefined })}
-          className="rounded-lg border border-line bg-card px-3 py-2 text-sm font-medium text-ink transition-colors hover:border-line-strong hover:bg-card-muted"
+          className="rounded-lg border border-line-strong bg-card px-4 py-2.5 text-sm font-semibold leading-5 text-ink-muted shadow-xs transition-colors hover:bg-card-muted"
         >
           View closed jobs
         </Link>
 
-        {/* Grid reads better when scanning; list fits more on screen. */}
         {/* One status at a time, with its count, as the frame has it. */}
         <JobStatusFilter
           selected={status}
@@ -169,32 +159,33 @@ async function AllJobs({
           }))}
         />
 
-        <div className="ml-auto flex items-center gap-1 rounded-lg border border-line bg-card p-0.5">
+        {/* Grid reads better when scanning; list fits more on screen. */}
+        <div className="flex items-stretch overflow-hidden rounded-lg border border-line-strong shadow-xs">
           {(
             [
               ["list", "list", "List view"],
               ["grid", "grid", "Grid view"],
             ] as const
-          ).map(([value, icon, label]) => (
+          ).map(([value, icon, label], index) => (
             <Link
               key={value}
               href={href({ view: value === "grid" ? undefined : value })}
               aria-current={view === value ? "true" : undefined}
               title={label}
               className={cn(
-                "rounded-md p-1.5 transition-colors",
+                "flex items-center justify-center px-3 py-2.5 transition-colors",
+                index === 0 && "border-r border-line-strong",
                 view === value
-                  ? "bg-brand-50 text-brand-700"
-                  : "text-ink-subtle hover:bg-card-muted hover:text-ink",
+                  ? "bg-line text-ink"
+                  : "bg-card text-ink-muted hover:bg-card-muted",
               )}
             >
-              <Icon name={icon} className="size-4" />
+              <Icon name={icon} className="size-5" />
               <span className="sr-only">{label}</span>
             </Link>
           ))}
         </div>
       </form>
-
 
       {jobs.length === 0 ? (
         <EmptyState

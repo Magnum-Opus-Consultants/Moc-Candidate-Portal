@@ -52,6 +52,11 @@ class JobSerializer(serializers.ModelSerializer):
     )
     applicant_count = serializers.IntegerField(read_only=True)
     new_applicant_count = serializers.IntegerField(read_only=True)
+    # Who the posting belongs to, for the detail page's "Last edited by".
+    # Blank rather than invented when the row predates the field.
+    created_by_name = serializers.CharField(
+        source="created_by.display_name", read_only=True, default=""
+    )
     closes_soon = serializers.BooleanField(read_only=True)
     days_until_close = serializers.IntegerField(read_only=True, allow_null=True)
     working_hours_label = serializers.CharField(read_only=True)
@@ -99,6 +104,7 @@ class JobSerializer(serializers.ModelSerializer):
             "updated_at",
             "applicant_count",
             "new_applicant_count",
+            "created_by_name",
             "closes_soon",
             "days_until_close",
             # The detail view

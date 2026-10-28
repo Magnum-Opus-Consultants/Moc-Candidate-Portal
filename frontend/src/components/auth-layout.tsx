@@ -240,12 +240,15 @@ export function RememberMe({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2 text-xs text-ink-muted">
+    // min-h-6: the label is the real tap target, and WCAG 2.2 asks for at
+    // least 24px. The box itself stays small; the row around it is what a
+    // thumb has to hit.
+    <label className="flex min-h-6 cursor-pointer items-center gap-2 text-xs text-ink-muted">
       <input
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="size-3.5 accent-brand-700"
+        className="size-4 accent-brand-700"
       />
       Remember me
     </label>

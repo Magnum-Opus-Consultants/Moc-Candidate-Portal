@@ -116,7 +116,7 @@ export function SignInForm({
 
       {google || linkedin ? <AuthDivider /> : null}
 
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+      <form method="post" onSubmit={handleSubmit} className="mt-6 space-y-4">
         <AuthField
           label="Email"
           id="email"
@@ -144,7 +144,7 @@ export function SignInForm({
           <RememberMe checked={remember} onChange={setRemember} />
           <Link
             href="/reset-password"
-            className="text-sm font-medium text-brand-700 transition-colors hover:text-brand-800"
+            className="inline-flex min-h-6 items-center text-sm font-medium text-brand-700 transition-colors hover:text-brand-800"
           >
             Forgot password?
           </Link>

@@ -223,40 +223,49 @@ function Deadline({ job }: { job: Job }) {
   );
 }
 
+/**
+ * The call to action at the foot of a grid card.
+ *
+ * Driven by status rather than by applicant count, which is how the frame
+ * reads: a live posting sends you to its applicants, a paused one to the
+ * posting, a draft back into the editor. Three weights of button, strongest
+ * for the one that still needs work doing.
+ */
+const GRID_CTA: Record<string, { label: string; className: string }> = {
+  active: {
+    label: "View applicants",
+    className:
+      "border-brand-secondary bg-brand-secondary text-brand-secondary-ink " +
+      "hover:border-brand-secondary-hover hover:bg-brand-secondary-hover",
+  },
+  paused: {
+    label: "View job",
+    className:
+      "border-brand-secondary-100 bg-brand-secondary-100 text-brand-800 " +
+      "hover:border-brand-200 hover:bg-brand-200",
+  },
+  draft: {
+    label: "View draft",
+    className:
+      "border-line-strong bg-card text-ink-muted hover:bg-card-muted",
+  },
+};
+
+// Closed and private postings take the quiet treatment, but they are not
+// drafts, so they read "View job".
+const GRID_CTA_FALLBACK = { ...GRID_CTA.draft, label: "View job" };
+
 /** Grid card — the hiring manager view of a posting. */
-export function JobGridCard({
-  job,
-  selected = false,
-  onSelect,
-  onDelete,
-}: {
-  job: Job;
-  selected?: boolean;
-  /** Omitted when the posting cannot be deleted, which is what selection is for. */
-  onSelect?: () => void;
-  onDelete?: () => void;
-}) {
+export function JobGridCard({ job }: { job: Job }) {
   const tone = JOB_STATUS_TONE[job.status] ?? "grey";
-  const isDraft = job.status === "draft";
+  const cta = GRID_CTA[job.status] ?? GRID_CTA_FALLBACK;
 
   return (
-    <Card
-      className={cn(
-        "flex h-full flex-col p-5 transition-colors",
-        selected && "border-brand-500 bg-brand-50",
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        {onSelect ? (
-          <input
-            type="checkbox"
-            checked={selected}
-            onChange={onSelect}
-            aria-label={`Select ${job.title}`}
-            className="mt-1 size-4 shrink-0 rounded border-line accent-brand-700"
-          />
-        ) : null}
-        <h3 className="min-w-0 font-semibold text-balance break-words text-ink-strong">
+    <div className="flex h-full flex-col gap-3 overflow-hidden rounded-2xl border border-line bg-card px-6 py-5">
+      <div className="flex items-start justify-between gap-2">
+        {/* The frame gives the title a fixed width and lets it clip, so a
+            long one never pushes the badge off the card. */}
+        <h3 className="min-w-0 truncate text-sm font-semibold leading-5 text-ink-strong">
           {job.title}
         </h3>
         <span className="shrink-0">
@@ -264,77 +273,56 @@ export function JobGridCard({
         </span>
       </div>
 
-      <dl className="mt-3 space-y-1.5 text-xs text-ink-muted">
+      <dl className="flex flex-col gap-1.5 text-xs leading-[18px] text-ink-subtle">
         <div className="flex items-center gap-1.5">
-          <Icon name="building" className="size-3.5" />
-          <dd>{job.company}</dd>
+          <Icon name="building" className="size-3.5 shrink-0" />
+          <dd className="truncate">{job.company}</dd>
         </div>
         <div className="flex items-center gap-1.5">
-          <Icon name="calendar" className="size-3.5" />
-          <dd>Closes {formatDate(job.closes_at)}</dd>
+          <Icon name="calendar" className="size-3.5 shrink-0" />
+          <dd className="truncate">Closes {formatDate(job.closes_at)}</dd>
         </div>
         <div className="flex items-center gap-1.5">
-          <Icon name="clock" className="size-3.5" />
-          <dd>
+          <Icon name="clock" className="size-3.5 shrink-0" />
+          <dd className="truncate">
             {job.posted_at ? `Posted ${formatDate(job.posted_at)}` : "Not published"}
           </dd>
         </div>
       </dl>
 
-      {/* Filled boxes rather than outlined, as the frame has them. */}
-      <div className="mt-4 flex gap-2">
-        <span className="flex-1 rounded-md bg-card-muted px-2.5 py-1.5 text-xs text-ink-muted">
-          <strong className="font-semibold text-ink">{job.applicant_count}</strong>{" "}
-          Total
-        </span>
-        <span className="flex-1 rounded-md bg-card-muted px-2.5 py-1.5 text-xs text-ink-muted">
-          <strong className="font-semibold text-ink">
-            {job.new_applicant_count}
-          </strong>{" "}
-          New
-        </span>
+      <div className="flex gap-2">
+        <StatChip value={job.applicant_count} label="Total" />
+        <StatChip value={job.new_applicant_count} label="New" />
       </div>
 
       {/* Pushes the action to the bottom so cards in a row line up. */}
       <div className="flex-1" />
 
-      {/*
-        The strong button is for a posting with applicants waiting; a draft
-        or an empty posting gets the quiet one. The label follows: there is
-        nothing to call "applicants" when none have applied.
-      */}
-      <div className="mt-4 flex items-center gap-2">
-        <Button
-          href={`/manager/jobs/${job.id}`}
-          variant={job.applicant_count > 0 ? "primary" : "outline"}
-          className="flex-1"
-          size="sm"
-        >
-          {isDraft
-            ? "View draft"
-            : job.applicant_count > 0
-              ? "View applicants"
-              : "View job"}
-          <Icon name="chevron-right" className="size-3.5" />
-        </Button>
-        {onDelete ? (
-          <button
-            type="button"
-            onClick={onDelete}
-            aria-label={`Delete ${job.title}`}
-            title={`Delete ${job.title}`}
-            className={cn(
-              // Red at rest, not only on hover: a bin that looks like every
-              // other grey icon reads as "archive" until you hover it.
-              "rounded-md border border-status-rose/30 p-1.5 text-status-rose transition-colors",
-              "hover:border-status-rose/60 hover:bg-status-rose-bg",
-            )}
-          >
-            <Icon name="trash" className="size-3.5" />
-          </button>
-        ) : null}
-      </div>
-    </Card>
+      <Link
+        href={`/manager/jobs/${job.id}`}
+        className={cn(
+          "flex w-full items-center justify-center gap-2 rounded-lg border px-3.5 py-2",
+          "text-sm font-semibold leading-5 shadow-xs transition-colors",
+          cta.className,
+        )}
+      >
+        {cta.label}
+        <Icon name="chevron-right" className="size-5" />
+      </Link>
+    </div>
+  );
+}
+
+function StatChip({ value, label }: { value: number; label: string }) {
+  return (
+    <span className="flex flex-1 items-center gap-1.5 rounded-lg bg-canvas px-3 py-2">
+      <strong className="text-sm font-bold leading-5 text-ink-strong">
+        {value}
+      </strong>
+      <span className="text-xs font-medium leading-[18px] text-ink-faint">
+        {label}
+      </span>
+    </span>
   );
 }
 
@@ -430,15 +418,22 @@ export function ProfileSectionRow({ section }: { section: ProfileSection }) {
       >
         {section.label.charAt(0)}
       </span>
-      <span className="w-48 shrink-0 truncate text-sm text-ink">{section.label}</span>
-      <div className="min-w-24 flex-1">
+      {/*
+        The label takes the slack and the bar a fixed slice, rather than the
+        other way round. With a fixed w-48 label the row had ~544px of
+        shrink-0 width and burst the narrow profile column on the dashboard.
+      */}
+      <span className="min-w-0 flex-1 truncate text-sm text-ink">
+        {section.label}
+      </span>
+      <div className="hidden w-28 shrink-0 sm:block">
         <ProgressBar value={section.progress} />
       </div>
       <span className="w-10 shrink-0 text-right text-xs text-ink-muted">
         {section.progress}%
       </span>
       {section.completed ? (
-        <span className="flex w-28 shrink-0 items-center justify-end gap-1.5 text-xs font-medium text-status-green">
+        <span className="hidden w-28 shrink-0 items-center justify-end gap-1.5 text-xs font-medium text-status-green lg:flex">
           Completed
           <Icon name="edit" className="size-3.5" />
         </span>

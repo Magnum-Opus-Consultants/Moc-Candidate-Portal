@@ -13,7 +13,7 @@
 
 import { cn } from "@/components/ui/primitives";
 
-export type ProgressSize = "xs" | "sm" | "md" | "lg" | "xl" | "2xl";
+export type ProgressSize = "xs" | "sm" | "md" | "lg" | "xl" | "2xl" | "3xl";
 
 /**
  * Which surface the ring sits on.
@@ -24,7 +24,7 @@ export type ProgressSize = "xs" | "sm" | "md" | "lg" | "xl" | "2xl";
  * three things have to change together — track, arc and readout — and
  * passing them separately is how one of them gets forgotten.
  */
-export type ProgressTone = "brand" | "panel";
+export type ProgressTone = "brand" | "panel" | "trough";
 
 const TONES: Record<
   ProgressTone,
@@ -41,6 +41,18 @@ const TONES: Record<
     arc: "stroke-panel-ink",
     value: "text-panel-ink",
     label: "text-panel-ink-muted",
+  },
+  /*
+   * The ring on the grey trough panel, as the profile frame draws it. The
+   * track is lighter than the panel rather than darker — on --trough the
+   * usual --line track is almost the same value and the ring loses its
+   * unfilled half.
+   */
+  trough: {
+    track: "stroke-line-soft",
+    arc: "stroke-brand-700",
+    value: "text-ink-strong",
+    label: "text-ink-muted",
   },
 };
 
@@ -69,6 +81,8 @@ const SIZES: Record<ProgressSize, SizeSpec> = {
   // rest of the scale, because on the frame the ring is the panel's subject
   // rather than an indicator beside something else.
   "2xl": { box: 168, stroke: 15, value: "text-[34px]", label: "text-xs", footroom: 32 },
+  // The completion panel beside the profile form, at the frame's size.
+  "3xl": { box: 200, stroke: 20, value: "text-[30px]", label: "text-xs", footroom: 38 },
 };
 
 function clamp(value: number) {

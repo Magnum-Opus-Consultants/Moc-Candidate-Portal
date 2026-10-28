@@ -131,6 +131,7 @@ function NameRow({
       }}
     >
       <form
+        method="post"
         onSubmit={(e) => {
           e.preventDefault();
           form.run(() => api.updateName(name.trim()), (u) => {
@@ -172,6 +173,7 @@ function EmailRow({
       }}
     >
       <form
+        method="post"
         onSubmit={(e) => {
           e.preventDefault();
           form.run(() => api.updateEmail(email.trim()), (u) => {
@@ -207,6 +209,7 @@ function PasswordRow({ loading }: { loading: boolean }) {
       }}
     >
       <form
+        method="post"
         onSubmit={(e) => {
           e.preventDefault();
           form.run(

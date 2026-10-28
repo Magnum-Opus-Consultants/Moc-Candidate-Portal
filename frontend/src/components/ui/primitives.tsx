@@ -352,13 +352,75 @@ export function PageHeading({
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-ink-strong">
+        <h1 className="text-3xl font-semibold leading-[38px] tracking-tight text-ink-strong">
           {title}
         </h1>
-        {subtext ? <p className="mt-1 text-sm text-ink-muted">{subtext}</p> : null}
+        {subtext ? (
+          <p className="mt-1 text-base leading-6 text-ink-body">{subtext}</p>
+        ) : null}
       </div>
       {action}
     </div>
+  );
+}
+
+/**
+ * The hiring manager's overview tile: a number in a chip, then what it counts.
+ *
+ * `emphasis` inverts the chip for a figure that wants acting on — new
+ * applicants waiting to be reviewed — rather than one that is just true.
+ */
+export function JobOverviewStat({
+  href,
+  value,
+  title,
+  supporting,
+  emphasis = false,
+}: {
+  href?: string;
+  value: string;
+  title: string;
+  supporting?: string;
+  emphasis?: boolean;
+}) {
+  const body = (
+    <>
+      <span
+        className={cn(
+          "inline-flex items-center justify-center rounded-lg px-3 py-1",
+          "text-2xl font-semibold leading-8",
+          emphasis
+            ? "bg-brand-700 text-brand-secondary-ink"
+            : "bg-brand-secondary-50 text-brand-800",
+        )}
+      >
+        {value}
+      </span>
+      <span className="flex flex-col gap-0.5">
+        <span className="text-sm font-semibold leading-5 text-ink-strong">
+          {title}
+        </span>
+        {supporting ? (
+          <span className="text-xs leading-[18px] text-ink-subtle">
+            {supporting}
+          </span>
+        ) : null}
+      </span>
+    </>
+  );
+
+  const className = cn(
+    "flex flex-1 flex-col items-start gap-3 rounded-xl border bg-card p-4 transition-colors",
+    emphasis ? "border-brand-secondary-200" : "border-line",
+    href && "hover:border-line-strong",
+  );
+
+  return href ? (
+    <Link href={href} className={className}>
+      {body}
+    </Link>
+  ) : (
+    <div className={className}>{body}</div>
   );
 }
 

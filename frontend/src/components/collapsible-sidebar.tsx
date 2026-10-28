@@ -162,7 +162,7 @@ export function SidebarLayout({
           </div>
         )}
 
-        <main className={cn("flex-1 px-5 py-7", !nav && "lg:pl-12")}>
+        <main className={cn("flex-1 px-5 py-7", !nav && "lg:px-8")}>
           {children}
         </main>
       </div>

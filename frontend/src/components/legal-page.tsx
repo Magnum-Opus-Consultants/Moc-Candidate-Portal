@@ -65,10 +65,18 @@ export function LegalPage({
       <footer className="border-t border-line bg-card">
         <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-x-5 gap-y-2 px-6 py-5 text-xs text-ink-subtle">
           <span>© Magnum Opus Consultants {COPYRIGHT_YEAR}</span>
-          <Link href="/privacy" className="transition-colors hover:text-ink">
+          {/* min-h-6: flex items, so these are their own tap targets rather
+              than inline links in running text, and WCAG 2.2 asks for 24px. */}
+          <Link
+            href="/privacy"
+            className="inline-flex min-h-6 items-center transition-colors hover:text-ink"
+          >
             Privacy
           </Link>
-          <Link href="/terms" className="transition-colors hover:text-ink">
+          <Link
+            href="/terms"
+            className="inline-flex min-h-6 items-center transition-colors hover:text-ink"
+          >
             Terms
           </Link>
         </div>

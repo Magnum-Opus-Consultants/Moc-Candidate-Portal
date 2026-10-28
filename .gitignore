@@ -3,3 +3,6 @@
 .idea/
 .DS_Store
 Thumbs.db
+
+# Scratch harnesses and screenshots kept beside the app while working
+frontend/_*

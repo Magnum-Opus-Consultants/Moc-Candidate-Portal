@@ -311,6 +311,18 @@ export function ProfileForm({
 
         {/* --- 3. Career details --------------------------------------- */}
         <Section id="career_details" title="Career details">
+          {/*
+            The job title, which is the line under the name on the branded
+            candidate profile. It was writable on the API and shown on every
+            hiring manager screen, but there was nowhere to enter it, so it
+            was always blank unless a parsed CV happened to supply it.
+          */}
+          <Field
+            label="Current or desired job title"
+            value={text("headline")}
+            onChange={(v) => set("headline", v)}
+            placeholder="e.g. Export Operations Coordinator"
+          />
           <Select
             label="Primary role category"
             required

@@ -92,7 +92,7 @@ function AskForLink() {
       ) : (
         <>
           <AuthError message={error} />
-          <form onSubmit={submit} className="mt-6 space-y-4">
+          <form method="post" onSubmit={submit} className="mt-6 space-y-4">
             <AuthField
               label="Email"
               id="email"
@@ -154,7 +154,7 @@ function ChooseNewPassword({ uid, token }: { uid: string; token: string }) {
     >
       <AuthError message={error} />
 
-      <form onSubmit={submit} className="mt-6 space-y-4">
+      <form method="post" onSubmit={submit} className="mt-6 space-y-4">
         <AuthField
           label="New password"
           id="password"
