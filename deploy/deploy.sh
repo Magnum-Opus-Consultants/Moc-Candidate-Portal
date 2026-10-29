@@ -71,5 +71,5 @@ done
 [ "${api:-}" = "200" ] || die "the API did not come back — journalctl -u moc-portal-api -n 50"
 [ "${web:-}" = "200" ] || die "the front end did not come back — journalctl -u moc-portal-web -n 50"
 
-say "Deployed — https://careers.moc-pty.com"
+say "Deployed — https://careers.demo.moc-pty.com"
 git --no-pager log --oneline -1
