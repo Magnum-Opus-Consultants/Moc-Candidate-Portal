@@ -219,6 +219,18 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("DJANGO_HSTS_SUBDOMAINS", False)
     SECURE_HSTS_PRELOAD = False
 
+    # Both of the above are deliberate, and `check --deploy` warns about
+    # both. The deploy script fails on any warning, so without silencing
+    # them the gate can never pass and stops catching what it is for:
+    # DEBUG left on, a development SECRET_KEY, ALLOWED_HOSTS on localhost.
+    #
+    # They stay off because this is one subdomain of moc-pty.com and both
+    # settings commit the whole domain. includeSubDomains tells browsers
+    # every sibling subdomain is HTTPS-only, and preload is close to
+    # irreversible. That is a decision for whoever owns the domain, not for
+    # a demo deployment to make on their behalf.
+    SILENCED_SYSTEM_CHECKS = ["security.W005", "security.W021"]
+
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = "DENY"
 

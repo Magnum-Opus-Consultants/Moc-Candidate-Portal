@@ -11,6 +11,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# The ports the services actually bind. Read from the unit file rather than
+# repeated here: this health check was looking at 8002 while gunicorn had
+# been on 8004 for some time, so a good deploy still reported failure.
+API_PORT="${API_PORT:-$(sed -n 's/.*--bind [0-9.]*:\([0-9][0-9]*\).*/\1/p' /etc/systemd/system/moc-portal-api.service 2>/dev/null | head -1)}"
+API_PORT="${API_PORT:-8004}"
+WEB_PORT="${WEB_PORT:-3001}"
+
 say() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
 die() { printf '\n\033[31mdeploy stopped: %s\033[0m\n' "$1" >&2; exit 1; }
 
@@ -55,8 +62,8 @@ sudo systemctl restart moc-portal-web.service
 
 say "Waiting for both to answer"
 for i in $(seq 1 30); do
-  api=$(curl -fsS -o /dev/null -w '%{http_code}' http://127.0.0.1:8002/api/health/ || true)
-  web=$(curl -fsS -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/ || true)
+  api=$(curl -fsS -o /dev/null -w '%{http_code}' "http://127.0.0.1:${API_PORT}/api/health/" || true)
+  web=$(curl -fsS -o /dev/null -w '%{http_code}' "http://127.0.0.1:${WEB_PORT}/" || true)
   [ "$api" = "200" ] && [ "$web" = "200" ] && break
   sleep 2
 done
