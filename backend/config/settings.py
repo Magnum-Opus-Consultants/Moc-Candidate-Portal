@@ -219,17 +219,25 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("DJANGO_HSTS_SUBDOMAINS", False)
     SECURE_HSTS_PRELOAD = False
 
-    # Both of the above are deliberate, and `check --deploy` warns about
-    # both. The deploy script fails on any warning, so without silencing
-    # them the gate can never pass and stops catching what it is for:
-    # DEBUG left on, a development SECRET_KEY, ALLOWED_HOSTS on localhost.
+    # `check --deploy` warns about all three of the settings above, and the
+    # deploy script fails on any warning. Silencing them is what keeps that
+    # gate meaningful for what it is actually there to catch: DEBUG left on,
+    # a development SECRET_KEY, ALLOWED_HOSTS still on localhost.
     #
-    # They stay off because this is one subdomain of moc-pty.com and both
-    # settings commit the whole domain. includeSubDomains tells browsers
-    # every sibling subdomain is HTTPS-only, and preload is close to
-    # irreversible. That is a decision for whoever owns the domain, not for
-    # a demo deployment to make on their behalf.
-    SILENCED_SYSTEM_CHECKS = ["security.W005", "security.W021"]
+    #   W005 includeSubDomains, W021 preload - off deliberately. This is one
+    #     subdomain of moc-pty.com and both commit the whole domain, preload
+    #     close to irreversibly. That belongs to whoever owns the domain, not
+    #     to a demo deployment acting on their behalf.
+    #
+    #   W008 SECURE_SSL_REDIRECT - off because of how this box is wired, not
+    #     by neglect. nginx already 301s :80 to :443 and is the only thing
+    #     listening publicly; gunicorn is reachable over loopback alone. The
+    #     front end's server-side rendering takes that loopback shortcut over
+    #     plain HTTP, so a redirect here would send every SSR request to an
+    #     https URL on a port with no TLS on it, and would answer the deploy
+    #     health check with a 301 it reads as the API being down. The setting
+    #     would protect a plaintext request that cannot reach Django anyway.
+    SILENCED_SYSTEM_CHECKS = ["security.W005", "security.W008", "security.W021"]
 
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = "DENY"
