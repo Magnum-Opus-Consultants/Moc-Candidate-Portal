@@ -6,6 +6,7 @@
 import Link from "next/link";
 
 import { SaveButton } from "@/components/job-actions";
+import { MatchBadges } from "@/components/match-badges";
 import { Icon, BookmarkFilled } from "@/components/ui/icon";
 import {
   Button,
@@ -17,7 +18,13 @@ import {
   StatusBadge,
   cn,
 } from "@/components/ui/primitives";
-import { formatDate, relativeDays, type Job, type ProfileSection } from "@/lib/api";
+import {
+  formatDate,
+  relativeDays,
+  type Job,
+  type MatchReason,
+  type ProfileSection,
+} from "@/lib/api";
 
 export function JobChips({ job }: { job: Job }) {
   return (
@@ -38,7 +45,7 @@ export function JobOverviewCard({ job }: { job: Job }) {
     <Card className="group relative p-5 transition-colors hover:border-line-strong">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="font-semibold break-words text-ink-strong">
+          <h3 className="font-semibold text-pretty text-ink-strong">
             <Link href={`/jobs/${job.id}`} className="before:absolute before:inset-0">
               {job.title}
             </Link>
@@ -57,7 +64,7 @@ export function JobOverviewCard({ job }: { job: Job }) {
       </div>
 
       <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-ink-muted">
-        {job.description}
+        {job.candidate_description}
       </p>
 
       <div className="mt-4 flex flex-wrap items-center gap-1.5">
@@ -76,119 +83,77 @@ export function JobOverviewCard({ job }: { job: Job }) {
 /** Recommended job card — carries the match reasons as chips. */
 export function RecommendedJobCard({
   job,
-  withAction = false,
   saved = false,
+  on = "panel",
 }: {
   job: Job;
-  /**
-   * Show a "View job details" button and a save control, as the Recommended
-   * Jobs page does. The dashboard uses the compact form, where the whole
-   * card is the link.
-   */
-  withAction?: boolean;
   saved?: boolean;
+  /**
+   * Where the card sits. Inside a white panel (the dashboard) it takes
+   * Neutral/100 and an 8px radius so it reads as a tile; on the page itself
+   * (Recommended Jobs) it takes Base/White and 12px, because there it is
+   * the surface rather than something on one.
+   */
+  on?: "panel" | "page";
 }) {
   /*
-   * The card used to print the first three lines of the job description.
-   * Every posting opens with the same boilerplate — who the employer of
-   * record is, how onboarding and payroll work — so three cards side by
-   * side said the same thing three times and none of them said where the
-   * job was or what it paid. The facts a candidate scans for go here
-   * instead; the description is one click away.
+   * Frame 118:3834. Title and bookmark, when it was added, the opening of
+   * the description, a rule, the match badges, the closing date and the
+   * action - in that order, on Neutral/100 rather than the page white so
+   * the card reads as a tile inside its panel.
    */
-  const facts = [
-    job.location,
-    job.work_setup_label,
-    job.employment_label,
-    job.salary_label,
-  ].filter(Boolean);
+  const reasons = job.match?.reasons ?? [];
 
   return (
-    <Card
+    <div
       className={cn(
-        "group flex h-full flex-col p-5 transition-colors hover:border-line-strong",
-        // Only stretch the title over the card when nothing else inside is
-        // clickable, or the overlay swallows the save button.
-        !withAction && "relative",
+        "flex flex-col gap-3 px-6 py-5 shadow-xs",
+        on === "page" ? "rounded-xl bg-card" : "rounded-lg bg-canvas",
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <h3 className="font-semibold break-words text-ink-strong">
-            <Link
-              href={`/jobs/${job.id}`}
-              className={cn(
-                "hover:text-brand-700",
-                !withAction && "before:absolute before:inset-0",
-              )}
-            >
-              {job.title}
-            </Link>
-          </h3>
-          <p className="mt-0.5 text-sm break-words text-ink-muted">{job.company}</p>
+      <div className="flex w-full flex-col">
+        <div className="flex items-center justify-between gap-2">
+          <Link
+            href={`/jobs/${job.id}`}
+            className="min-w-0 truncate text-lg font-semibold leading-7 text-ink-strong hover:text-brand-700"
+          >
+            {job.title}
+          </Link>
+          <SaveButton jobId={job.id} initialSaved={saved} bare />
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
-          {job.match ? (
-            <span
-              className="rounded-full bg-brand-100 px-2 py-1 text-xs font-semibold text-brand-700"
-              title="How well this role fits your profile"
-            >
-              {job.match.score}% match
-            </span>
-          ) : null}
-          {withAction ? <SaveButton jobId={job.id} initialSaved={saved} /> : null}
-        </div>
-      </div>
-
-      {facts.length > 0 ? (
-        <ul className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">
-          {facts.map((fact, index) => (
-            <li key={fact} className="flex items-center gap-2">
-              {index > 0 ? (
-                <span aria-hidden className="text-ink-subtle">
-                  ·
-                </span>
-              ) : null}
-              {fact}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      {job.match && job.match.reasons.length > 0 ? (
-        <div className="mt-3.5 flex flex-wrap gap-1.5">
-          {job.match.reasons.slice(0, 4).map((reason) => (
-            <MatchChip
-              key={reason.label}
-              label={reason.label}
-              level={reason.level}
-            />
-          ))}
-        </div>
-      ) : null}
-
-      {/* Pushes the footer down so cards in a row line up. */}
-      <div className="flex-1" />
-
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
-        <span className="flex items-center gap-1 text-xs text-ink-subtle">
-          <Icon name="clock" className="size-3" />
-          {relativeDays(job.posted_at)}
+        {/* h-4 because the frame's row is the 16px clock, with the 18px
+            label centred on it - not 18px tall. */}
+        <span className="flex h-4 items-center gap-1.5 text-xs font-medium leading-[18px] text-ink-faint">
+          <Icon name="clock" className="size-4 shrink-0" />
+          Added {relativeDays(job.posted_at).toLowerCase()}
         </span>
-        <Deadline job={job} />
       </div>
 
-      {withAction ? (
-        <Link
-          href={`/jobs/${job.id}`}
-          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand-100 px-4 py-2.5 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-200"
-        >
-          View job details
-          <Icon name="chevron-right" className="size-4" />
-        </Link>
+      {job.candidate_description ? (
+        <p className="line-clamp-3 text-xs leading-[18px] text-ink-muted">
+          {job.candidate_description}
+        </p>
       ) : null}
-    </Card>
+
+      <div aria-hidden className="relative h-0 w-full">
+        <span className="absolute inset-x-0 -top-px block h-px bg-line" />
+      </div>
+
+      <MatchBadges reasons={reasons} on={on} />
+
+      <p className="text-xs leading-[18px] text-ink-faint">
+        Applications close {formatDate(job.closes_at)}
+      </p>
+
+      <Link
+        href={`/jobs/${job.id}`}
+        className="flex w-full items-center justify-center gap-2 rounded-lg border border-brand-secondary-100 bg-brand-secondary-100 px-3.5 py-2 text-sm font-semibold leading-5 text-brand-800 shadow-xs transition-colors hover:border-brand-secondary-200 hover:bg-brand-secondary-200"
+      >
+        View job details
+        <Icon name="chevron-right" className="size-5" />
+      </Link>
+    </div>
   );
 }
 
@@ -275,10 +240,6 @@ export function JobGridCard({ job }: { job: Job }) {
 
       <dl className="flex flex-col gap-1.5 text-xs leading-[18px] text-ink-subtle">
         <div className="flex items-center gap-1.5">
-          <Icon name="building" className="size-3.5 shrink-0" />
-          <dd className="truncate">{job.company}</dd>
-        </div>
-        <div className="flex items-center gap-1.5">
           <Icon name="calendar" className="size-3.5 shrink-0" />
           <dd className="truncate">Closes {formatDate(job.closes_at)}</dd>
         </div>
@@ -323,6 +284,67 @@ function StatChip({ value, label }: { value: number; label: string }) {
         {label}
       </span>
     </span>
+  );
+}
+
+/**
+ * A row in Saved Jobs or Recently viewed (frame 11:4903).
+ *
+ * Same shape for both panels; only the action differs - a saved job offers
+ * "Apply now", a viewed one "View job details". The timestamp underneath is
+ * what each list is ordered by, so it is part of the row, not decoration.
+ */
+export function SavedViewedRow({
+  job,
+  at,
+  verb,
+  action,
+  divided,
+}: {
+  job: Job;
+  at: string;
+  /** "Saved" or "Viewed" - the row says which it means. */
+  verb: string;
+  action: "apply" | "details";
+  divided: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-between gap-4 px-6 py-4",
+        divided && "border-b border-line-soft",
+      )}
+    >
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <Link
+          href={`/jobs/${job.id}`}
+          className="truncate text-base font-semibold text-ink-body hover:text-brand-700"
+        >
+          {job.title}
+        </Link>
+        <span className="flex items-center gap-1 text-xs text-ink-faint">
+          <Icon name="clock" className="size-3.5 shrink-0" />
+          {verb} {relativeDays(at).toLowerCase()}
+        </span>
+      </div>
+
+      {action === "apply" ? (
+        <Link
+          href={`/jobs/${job.id}`}
+          className="shrink-0 rounded-lg border border-brand-secondary bg-brand-secondary px-3.5 py-2 text-sm font-semibold leading-5 text-brand-secondary-ink shadow-xs transition-colors hover:border-brand-secondary-hover hover:bg-brand-secondary-hover"
+        >
+          Apply now
+        </Link>
+      ) : (
+        <Link
+          href={`/jobs/${job.id}`}
+          className="inline-flex shrink-0 items-center gap-2 text-sm font-semibold leading-5 text-brand-800"
+        >
+          View job details
+          <Icon name="chevron-right" className="size-5" />
+        </Link>
+      )}
+    </div>
   );
 }
 
@@ -371,9 +393,9 @@ export function JobRow({
   return (
     <Card className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
       <div className="min-w-0">
-        <p className="font-medium break-words text-ink-strong">{job.title}</p>
+        <p className="font-medium text-pretty text-ink-strong">{job.title}</p>
         <p className="text-xs text-ink-subtle">
-          {stamp ?? `${job.company} · ${job.location}`}
+          {stamp ?? job.location}
         </p>
       </div>
       <div className="flex items-center gap-3">

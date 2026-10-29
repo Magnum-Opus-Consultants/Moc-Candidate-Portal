@@ -3,6 +3,8 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { StageHistory } from "@/components/application-stage";
+import { PortalFooter } from "@/components/portal-footer";
+import { Icon } from "@/components/ui/icon";
 import { BackendOffline, PageSkeleton } from "@/components/states";
 import {
   APPLICATION_STATUS_TONE,
@@ -35,14 +37,14 @@ export default function ApplicationsPage({
 /** How many rows a page shows before "Show more". */
 const PAGE = 15;
 
-const TABS: Array<{ key: string; label: string }> = [
-  { key: "active", label: "In progress" },
-  { key: "shortlisted", label: "Shortlisted" },
-  { key: "interview", label: "Interview" },
-  { key: "offer", label: "Offer" },
-  { key: "rejected", label: "Not successful" },
-  { key: "all", label: "All" },
-];
+/*
+ * The frame has no stage filter on this page - it is a list of the
+ * applications still in progress, which is what the title says. The tabs
+ * that used to sit here (In progress / Shortlisted / Interview / Offer /
+ * Not successful / All) are gone with it. ?status= still works if a link
+ * carries one, so nothing that already points here breaks.
+ */
+
 
 async function Applications({
   searchParams,
@@ -67,65 +69,18 @@ async function Applications({
   const { results, counts, count, has_more: hasMore } = result.data;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeading
-        title="Applications"
-        subtext="Where each position you have applied for has reached."
-        action={
-          <Button href="/" variant="outline" size="sm">
-            Browse open positions
-          </Button>
-        }
+        title="Active Applications"
+        subtext="Track your active applications and their statuses"
       />
-
-      {/*
-        The four stat tiles that used to sit here said the same thing as the
-        tabs below — "In progress 4" twice over, and "Total" equal to "All".
-        Two rows of the same numbers push the actual applications off the
-        screen, so the tabs carry the counts on their own.
-
-        Filter by stage. Counts are of everything, so the tabs do not jump.
-      */}
-      <div className="flex flex-wrap gap-1.5 border-b border-line pb-3">
-        {TABS.map((tab) => {
-          const count = counts[tab.key] ?? 0;
-          const selected = active === tab.key;
-          return (
-            <Link
-              key={tab.key}
-              href={
-                tab.key === "active"
-                  ? "/portal/applications"
-                  : `/portal/applications?status=${tab.key}`
-              }
-              aria-current={selected ? "page" : undefined}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors",
-                selected
-                  ? "border-brand-700 bg-brand-700 font-medium text-brand-ink"
-                  : "border-line bg-card text-ink-muted hover:border-line-strong hover:text-ink",
-              )}
-            >
-              {tab.label}
-              <span
-                className={cn(
-                  "rounded px-1.5 text-xs font-semibold",
-                  selected ? "bg-white/20" : "bg-card-muted text-ink-subtle",
-                )}
-              >
-                {count}
-              </span>
-            </Link>
-          );
-        })}
-      </div>
 
       {results.length === 0 ? (
         <Card className="p-12 text-center">
           <p className="font-medium text-ink-strong">
             {active === "active"
               ? "Nothing in progress"
-              : `No applications at ${TABS.find((t) => t.key === active)?.label.toLowerCase()}`}
+              : "No applications at this stage"}
           </p>
           <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-ink-muted">
             {counts.all === 0
@@ -145,10 +100,15 @@ async function Applications({
         </Card>
       ) : (
         <>
-          <ol className="space-y-2.5">
-            {results.map((application) => (
-              <li key={application.id}>
-                <ApplicationCard application={application} />
+          <ol className="flex flex-col overflow-hidden rounded-2xl bg-card shadow-xs">
+            {results.map((application, index) => (
+              <li
+                key={application.id}
+                className={cn(
+                  index < results.length - 1 && "border-b border-line-soft",
+                )}
+              >
+                <ApplicationRow application={application} />
               </li>
             ))}
           </ol>
@@ -172,6 +132,7 @@ async function Applications({
           ) : null}
         </>
       )}
+      <PortalFooter />
     </div>
   );
 }
@@ -185,95 +146,55 @@ async function Applications({
  * them filled the screen; thirty would be unreadable. What differs between
  * rows is on the row; what is the same for all of them is one click away.
  */
-function ApplicationCard({ application }: { application: Application }) {
-  const { job, pipeline, stage_index, is_closed } = application;
-  const steps = pipeline.length || 1;
-  const reached = Math.max(stage_index + 1, 1);
-  // Nothing comes next once an application is closed, or at the last stage.
-  const next = is_closed ? null : (pipeline[stage_index + 1] ?? null);
+/**
+ * One application, as frame 11:4921 draws it: the title, then the status,
+ * the closing date, the date applied and the way in - all on one line.
+ *
+ * The card this replaced carried a pipeline bar and a "what happens next"
+ * line per application. Useful, but it made each row six lines tall, so
+ * five applications filled the screen. The stage is in the badge; the
+ * detail is one click away.
+ */
+function ApplicationRow({ application }: { application: Application }) {
+  const { job } = application;
 
   return (
-    <Card className="p-4">
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate font-semibold text-ink-strong">
-            <Link href={`/jobs/${job.id}`} className="hover:text-brand-700">
-              {job.title}
-            </Link>
-          </h2>
-          <p className="mt-0.5 truncate text-sm text-ink-muted">
-            {job.company}
-            <span className="text-ink-subtle"> · </span>
-            {job.employment_label}
-            <span className="text-ink-subtle"> · </span>
-            {job.work_setup_label}
-          </p>
-        </div>
+    <div className="flex items-center px-6 py-3.5">
+      <div className="flex min-w-0 flex-1 items-center justify-between gap-4 py-2">
+        <Link
+          href={`/jobs/${job.id}`}
+          className="min-w-0 truncate text-base font-semibold leading-6 text-ink-body hover:text-brand-700"
+        >
+          {job.title}
+        </Link>
 
-        <div className="flex shrink-0 items-center gap-3">
-          <span className="hidden text-xs text-ink-subtle sm:inline">
-            Applied {formatDate(application.applied_at)}
-          </span>
+        <div className="flex shrink-0 items-center justify-end gap-10">
           <StatusBadge
             label={application.status_label}
             tone={APPLICATION_STATUS_TONE[application.status] ?? "grey"}
           />
-        </div>
-      </div>
 
-      {/*
-        Where it is and what comes next. The five labelled steps and the
-        "sent with this application" list were the same on every row and
-        told a candidate nothing they could act on; these two facts are
-        what they actually want to know.
-      */}
-      <div className="mt-3 flex items-center gap-3">
-        <div
-          className="h-1.5 flex-1 overflow-hidden rounded-full bg-line"
-          role="img"
-          aria-label={`Stage ${reached} of ${steps}: ${application.status_label}`}
-        >
-          <div
-            className={cn(
-              "h-full rounded-full transition-[width]",
-              is_closed ? "bg-status-grey" : "bg-brand-700",
-            )}
-            style={{ width: `${(reached / steps) * 100}%` }}
-          />
-        </div>
-        <span className="shrink-0 text-xs text-ink-subtle">
-          {reached} of {steps}
-        </span>
-      </div>
-
-      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs">
-        <p className="text-ink-muted">
-          <span className="text-ink-subtle">Now:</span>{" "}
-          <span className="font-medium text-ink">
-            {application.status_label}
-          </span>
-          {next ? (
-            <>
-              <span className="mx-2 text-ink-subtle">→</span>
-              <span className="text-ink-subtle">Next:</span>{" "}
-              <span className="font-medium text-ink">{next.label}</span>
-            </>
-          ) : (
-            <span className="ml-2 text-ink-subtle">
-              {is_closed ? "This application is closed." : "Final stage."}
+          {job.closes_at ? (
+            <span className="hidden items-center gap-2 text-base leading-6 text-ink-subtle xl:flex">
+              <Icon name="alert-circle" className="size-5 shrink-0" />
+              {formatDate(job.closes_at)}
             </span>
-          )}
-        </p>
+          ) : null}
 
-        <Link
-          href={`/jobs/${job.id}`}
-          className="font-medium text-brand-700 hover:underline"
-        >
-          View the position
-        </Link>
+          <span className="hidden items-center gap-2 text-base leading-6 text-ink-subtle lg:flex">
+            <Icon name="calendar-check" className="size-5 shrink-0" />
+            {formatDate(application.applied_at)}
+          </span>
+
+          <Link
+            href={`/jobs/${job.id}`}
+            className="inline-flex shrink-0 items-center gap-2 text-sm font-semibold leading-5 text-brand-700"
+          >
+            View job details
+            <Icon name="chevron-right" className="size-5" />
+          </Link>
+        </div>
       </div>
-
-      <StageHistory application={application} />
-    </Card>
+    </div>
   );
 }

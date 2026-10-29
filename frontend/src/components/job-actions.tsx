@@ -15,11 +15,18 @@ export function SaveButton({
   jobId,
   initialSaved = false,
   compact = false,
+  bare = false,
 }: {
   jobId: number;
   initialSaved?: boolean;
   /** Borderless, for the corner of a card that has its own border. */
   compact?: boolean;
+  /**
+   * Just the 24px glyph, no ring and no padding - what the recommended job
+   * card shows (11:4934). The ringed variant stood 38px tall and pushed the
+   * card's title row 10px past the frame.
+   */
+  bare?: boolean;
 }) {
   const router = useRouter();
   const [saved, setSaved] = useState(initialSaved);
@@ -45,17 +52,25 @@ export function SaveButton({
       aria-label={saved ? "Saved — tap to remove" : "Save this job"}
       className={cn(
         "rounded-full transition-colors disabled:opacity-60",
-        compact ? "p-1.5" : "border p-2.5",
+        bare ? "inline-flex shrink-0" : compact ? "p-1.5" : "border p-2.5",
         saved
-          ? compact
-            ? "bg-brand-50 text-brand-700"
-            : "border-brand-700 bg-brand-50 text-brand-700"
-          : compact
-            ? "text-ink-subtle hover:bg-card-muted hover:text-brand-700"
-            : "border-line text-ink-muted hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700",
+          ? bare
+            ? "text-brand-700"
+            : compact
+              ? "bg-brand-50 text-brand-700"
+              : "border-brand-700 bg-brand-50 text-brand-700"
+          : bare
+            ? "text-ink-strong hover:text-brand-700"
+            : compact
+              ? "text-ink-subtle hover:bg-card-muted hover:text-brand-700"
+              : "border-line text-ink-muted hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700",
       )}
     >
-      {saved ? <BookmarkFilled /> : <Icon name="bookmark" />}
+      {saved ? (
+        <BookmarkFilled className={bare ? "size-6" : undefined} />
+      ) : (
+        <Icon name="bookmark" className={bare ? "size-6" : "size-4"} />
+      )}
     </button>
   );
 }
@@ -64,9 +79,12 @@ export function SaveButton({
 export function SaveForLaterButton({
   jobId,
   initialSaved = false,
+  className,
 }: {
   jobId: number;
   initialSaved?: boolean;
+  /** Overrides the default pill, for callers matching a frame. */
+  className?: string;
 }) {
   const router = useRouter();
   const [saved, setSaved] = useState(initialSaved);
@@ -89,14 +107,17 @@ export function SaveForLaterButton({
       onClick={toggle}
       disabled={busy}
       aria-pressed={saved}
-      className={cn(
-        "inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors",
-        saved
-          ? "border-brand-700 bg-brand-50 text-brand-700"
-          : "border-line bg-card text-ink hover:border-line-strong",
-      )}
+      className={
+        className ??
+        cn(
+          "inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors",
+          saved
+            ? "border-brand-700 bg-brand-50 text-brand-700"
+            : "border-line bg-card text-ink hover:border-line-strong",
+        )
+      }
     >
-      <Icon name="bookmark" className="size-3.5" />
+      {className ? null : <Icon name="bookmark" className="size-3.5" />}
       {saved ? "Saved" : "Save for later"}
     </button>
   );
@@ -106,7 +127,13 @@ export function SaveForLaterButton({
  * Share a job: the native share sheet where available, otherwise copy the link
  * and show a brief tick.
  */
-export function ShareButton({ jobId }: { jobId: number }) {
+export function ShareButton({
+  jobId,
+  className,
+}: {
+  jobId: number;
+  className?: string;
+}) {
   const [copied, setCopied] = useState(false);
 
   async function share() {
@@ -129,9 +156,15 @@ export function ShareButton({ jobId }: { jobId: number }) {
       type="button"
       onClick={share}
       aria-label={copied ? "Link copied" : "Share this job"}
-      className="rounded-full border border-line p-2.5 text-ink-muted transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
+      className={
+        className ??
+        "rounded-full border border-line p-2.5 text-ink-muted transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
+      }
     >
-      <Icon name={copied ? "check" : "share"} />
+      <Icon
+        name={copied ? "check" : className ? "share-01" : "share"}
+        className={className ? "size-5" : undefined}
+      />
     </button>
   );
 }
@@ -149,11 +182,19 @@ export function ApplyButton({
   jobId,
   initialApplied = false,
   className,
+  buttonClassName,
   children = "Apply now",
 }: {
   jobId: number;
   initialApplied?: boolean;
+  /** Layout of the wrapper, which also carries the result message. */
   className?: string;
+  /**
+   * The button itself. Callers that need the frame's own button - the saved
+   * row's Brand/Secondary/400 fill - were passing those classes as
+   * `className`, where they landed on the wrapper and did nothing.
+   */
+  buttonClassName?: string;
   children?: React.ReactNode;
 }) {
   const router = useRouter();
@@ -196,7 +237,12 @@ export function ApplyButton({
   if (applied) {
     return (
       <span className={cn("inline-flex flex-col items-end gap-1", className)}>
-        <span className="rounded-lg bg-brand-100 px-4 py-2 text-sm font-medium text-brand-300">
+        <span
+          className={
+            buttonClassName ??
+            "rounded-lg bg-brand-100 px-4 py-2 text-sm font-medium text-brand-300"
+          }
+        >
           Already applied
         </span>
         {message && !failed ? (
@@ -214,7 +260,11 @@ export function ApplyButton({
         type="button"
         onClick={apply}
         disabled={busy}
-        className="rounded-lg bg-brand-700 px-5 py-2 text-sm font-medium text-brand-ink transition-colors hover:bg-brand-800 disabled:bg-brand-100 disabled:text-brand-300"
+        className={cn(
+          buttonClassName ??
+            "rounded-lg bg-brand-700 px-5 py-2 text-sm font-medium text-brand-ink transition-colors hover:bg-brand-800",
+          "disabled:opacity-60",
+        )}
       >
         {busy ? "Applying…" : children}
       </button>

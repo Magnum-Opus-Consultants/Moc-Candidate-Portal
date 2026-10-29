@@ -25,11 +25,14 @@ export function Logo({
 }) {
   const mark = (
     <span className="flex items-center gap-3">
+      {/* The lockup is navy artwork, which disappears against the dark rail
+          and the dark footer. Flattening and inverting it gives the white
+          cut those surfaces need, from the one file. */}
       <Image
         src={horizontal}
         alt="Magnum Opus Consultants"
         priority
-        className={`w-auto ${className}`}
+        className={`w-auto dark:brightness-0 dark:invert ${className}`}
       />
       {label ? (
         <>

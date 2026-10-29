@@ -2,7 +2,11 @@ import Link from "next/link";
 
 import { JobStatusActions } from "@/components/job-status-actions";
 import { Icon } from "@/components/ui/icon";
-import { JOB_STATUS_TONE, StatusBadge } from "@/components/ui/primitives";
+import {
+  JOB_STATUS_TONE,
+  JobOverviewStat,
+  StatusBadge,
+} from "@/components/ui/primitives";
 import { formatDate, type Job } from "@/lib/api";
 
 /**
@@ -98,56 +102,37 @@ function Fact({
 /**
  * The three counts across the top.
  *
- * On the frame they sit in a grey trough rather than floating on the page,
- * which keeps them reading as one band of context for the list below
- * instead of three unrelated cards.
+ * The same "Job overview / Stat card" the All jobs page uses, rather than a
+ * local variant: the design system defines one of these and this view and
+ * that one are the two places it appears. The number sits in a container at
+ * the top of the card - an earlier version drew an empty ring beside it,
+ * which was a decoration that never meant anything.
  */
 export function ApplicantStats({
   stats,
 }: {
   stats: { total: number; saved: number; new: number };
 }) {
-  const cards = [
-    { value: stats.total, title: "Total applicants", sub: "All", icon: "users" },
-    {
-      value: stats.saved,
-      title: "Saved applicants",
-      sub: "Profiles to take another look at",
-      icon: "bookmark",
-    },
-    {
-      value: stats.new,
-      title: "New applications",
-      sub: "Applications that haven't been viewed",
-      icon: "sparkle",
-    },
-  ] as const;
-
   return (
-    <div className="grid gap-5 rounded-2xl bg-trough p-5 sm:grid-cols-3">
-      {cards.map((card) => (
-        <div
-          key={card.title}
-          className="flex min-h-[124px] items-center gap-4 rounded-lg border border-line bg-card px-6 py-5"
-        >
-          {/* A ring, as the frame draws it — no glyph inside. The three
-              cards are told apart by their words, and three different
-              icons were three more things to read. */}
-          <span
-            aria-hidden
-            className="size-9 shrink-0 rounded-full border border-line-strong"
-          />
-          <div className="min-w-0">
-            <p className="text-[30px] font-bold leading-[38px] text-ink-strong">
-              {card.value}
-            </p>
-            <p className="text-sm font-semibold leading-5 text-ink-strong">
-              {card.title}
-            </p>
-            <p className="text-xs leading-[18px] text-ink-subtle">{card.sub}</p>
-          </div>
-        </div>
-      ))}
+    <div className="flex flex-col gap-4 sm:flex-row">
+      <JobOverviewStat
+        value={stats.total.toLocaleString("en-ZA")}
+        title="Total applicants"
+        supporting="All applications for this job"
+      />
+      <JobOverviewStat
+        value={stats.saved.toLocaleString("en-ZA")}
+        title="Saved applicants"
+        supporting="Profiles to take another look at"
+      />
+      {/* The design system marks this one out only when there is something
+          to act on — an emphasised zero is a false alarm. */}
+      <JobOverviewStat
+        value={stats.new.toLocaleString("en-ZA")}
+        title="New applications"
+        supporting="Applications you haven’t viewed yet"
+        emphasis={stats.new > 0}
+      />
     </div>
   );
 }

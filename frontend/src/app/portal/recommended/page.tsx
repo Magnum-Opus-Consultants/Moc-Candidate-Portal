@@ -2,18 +2,16 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
 
-import { FilterRail } from "@/components/filter-rail";
 import {
-  ActiveFilters,
   FILTER_GROUPS,
   selectedIn,
-  toggleParam,
   withParam,
   type Params,
 } from "@/components/job-board";
-import { RecommendedCard } from "@/components/recommended-card";
+import { RecommendedJobCard } from "@/components/job-cards";
 import { BackendOffline, CardSkeleton } from "@/components/states";
-import { Icon } from "@/components/ui/icon";
+import { PageHeading } from "@/components/ui/primitives";
+import { PortalFooter } from "@/components/portal-footer";
 import { api } from "@/lib/api";
 
 export const metadata = { title: "Recommended Jobs" };
@@ -80,7 +78,13 @@ async function Recommended({
     savedResult.ok ? savedResult.data.results.map((job) => job.id) : [],
   );
 
-  const { results: jobs, facets, count, ranked, has_more: hasMore } = result.data;
+  const {
+    results: jobs,
+    facets,
+    count,
+    ranked,
+    has_more: hasMore,
+  } = result.data;
 
   const disciplines = Object.keys(facets.role_category ?? {}).sort();
   const groups = [
@@ -97,148 +101,80 @@ async function Recommended({
     groups.some((group) => selectedIn(params, group.key).length > 0);
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight text-ink-strong">
-          Recommended jobs
-        </h1>
-        <p className="mt-1 text-sm text-ink-muted">
-          Ranked against your profile by the matching engine. Best fit first.
-        </p>
-      </div>
-
-      {/* Search sits above the results it searches, not off in the header. */}
-      <form action={BASE} className="flex flex-wrap items-center gap-2">
-        <label className="relative min-w-56 flex-1">
-          <span className="sr-only">Search your recommended jobs</span>
-          <Icon
-            name="search"
-            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-subtle"
-          />
-          <input
-            type="search"
-            name="q"
-            defaultValue={params.q ?? ""}
-            placeholder="Search your recommended jobs"
-            className="w-full rounded-lg border border-line bg-card py-2 pl-9 pr-3 text-sm text-ink placeholder:text-ink-subtle focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
-          />
-        </label>
-
-        {/* The filters already chosen ride along, or searching would quietly
-            throw them away. */}
-        {groups.flatMap((group) =>
-          selectedIn(params, group.key).length
-            ? [
-                <input
-                  key={group.key}
-                  type="hidden"
-                  name={group.key}
-                  value={selectedIn(params, group.key).join(",")}
-                />,
-              ]
-            : [],
-        )}
-
-        <button
-          type="submit"
-          className="rounded-lg bg-brand-700 px-4 py-2 text-sm font-medium text-brand-ink transition-colors hover:bg-brand-800"
-        >
-          Search
-        </button>
-      </form>
-
-      <div className="space-y-3">
-        <FilterRail
-          groups={groups}
-          selected={Object.fromEntries(
-            groups.map((group) => [group.key, selectedIn(params, group.key)]),
-          )}
-          facets={facets}
-          hrefs={Object.fromEntries(
-            groups.map((group) => [
-              group.key,
-              Object.fromEntries(
-                group.options.map(([value]) => [
-                  value,
-                  toggleParam(params, group.key, value, BASE),
-                ]),
-              ),
-            ]),
-          )}
-          clearHref={BASE}
+    <div>
+      {/* The frame leaves 32px between the heading and the grid, but only
+          16 between the grid and the footer rule, so the footer sits
+          outside the page's own rhythm rather than inside it. */}
+      <div className="space-y-8">
+        <PageHeading
+          title="Recommended Jobs"
+          subtext="Job opportunities matched to your skills, experience and career preferences"
         />
-        <ActiveFilters params={params} base={BASE} />
-      </div>
 
-      <div>
+        {/*
+        The frame goes straight from the heading to the cards: no search,
+        no filter rail, no active-filter chips, no "x of y ranked" line.
+        The query string still drives the request, so a link carrying
+        ?q= or a facet keeps working - only the controls are gone.
+      */}
         <div>
-          <div className="flex flex-wrap items-baseline justify-between gap-2 pb-3">
-            <h2 className="text-base font-semibold text-ink-strong">
-              {narrowed
-                ? `${jobs.length} of ${ranked.toLocaleString("en-ZA")} ranked`
-                : "Your best matches"}
-            </h2>
-            {count > ranked ? (
-              <span
-                className="text-xs text-ink-subtle"
-                title="Match scores are worked out per job, so the newest matches are ranked rather than every one. Narrow the filters to rank a different set."
-              >
-                from {count.toLocaleString("en-ZA")} matching openings
-              </span>
+          <div>
+            {jobs.length === 0 ? (
+              <div className="rounded-xl border border-line bg-card p-12 text-center">
+                <p className="font-medium text-ink-strong">
+                  {narrowed
+                    ? "Nothing matches those filters"
+                    : "Nothing to recommend just yet"}
+                </p>
+                <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-ink-muted">
+                  {narrowed
+                    ? "Try clearing a filter or searching for something broader."
+                    : "Complete more of your profile and the matching will have more to work with."}
+                </p>
+                {narrowed ? (
+                  <Link
+                    href={BASE}
+                    className="mt-5 inline-flex items-center rounded-lg border border-line-strong bg-card px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-card-muted"
+                  >
+                    Clear filters
+                  </Link>
+                ) : null}
+              </div>
+            ) : (
+              <ol className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {jobs.map((job) => (
+                  <li key={job.id} className="h-full">
+                    <RecommendedJobCard
+                      job={job}
+                      saved={savedIds.has(job.id)}
+                      on="page"
+                    />
+                  </li>
+                ))}
+              </ol>
+            )}
+
+            {hasMore ? (
+              <div className="mt-4 text-center">
+                <Link
+                  href={withParam(params, "show", String(limit + PAGE), BASE)}
+                  scroll={false}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:border-line-strong hover:bg-card-muted"
+                >
+                  Show more
+                  <span className="text-ink-subtle">
+                    ({(ranked - jobs.length).toLocaleString("en-ZA")} more
+                    ranked)
+                  </span>
+                </Link>
+              </div>
             ) : null}
           </div>
-
-          {jobs.length === 0 ? (
-            <div className="rounded-xl border border-line bg-card p-12 text-center">
-              <p className="font-medium text-ink-strong">
-                {narrowed
-                  ? "Nothing matches those filters"
-                  : "Nothing to recommend just yet"}
-              </p>
-              <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-ink-muted">
-                {narrowed
-                  ? "Try clearing a filter or searching for something broader."
-                  : "Complete more of your profile and the matching will have more to work with."}
-              </p>
-              {narrowed ? (
-                <Link
-                  href={BASE}
-                  className="mt-5 inline-flex items-center rounded-lg border border-line-strong bg-card px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-card-muted"
-                >
-                  Clear filters
-                </Link>
-              ) : null}
-            </div>
-          ) : (
-            <ol className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {jobs.map((job) => (
-                <li key={job.id} className="h-full">
-                  <RecommendedCard
-                    job={job}
-                    href={`/jobs/${job.id}`}
-                    saved={savedIds.has(job.id)}
-                  />
-                </li>
-              ))}
-            </ol>
-          )}
-
-          {hasMore ? (
-            <div className="mt-4 text-center">
-              <Link
-                href={withParam(params, "show", String(limit + PAGE), BASE)}
-                scroll={false}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:border-line-strong hover:bg-card-muted"
-              >
-                Show more
-                <span className="text-ink-subtle">
-                  ({(ranked - jobs.length).toLocaleString("en-ZA")} more ranked)
-                </span>
-              </Link>
-            </div>
-          ) : null}
         </div>
+      </div>
 
+      <div className="mt-4">
+        <PortalFooter />
       </div>
     </div>
   );

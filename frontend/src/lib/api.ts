@@ -54,6 +54,11 @@ export type Job = {
   updated_at: string;
   applicant_count: number;
   new_applicant_count: number;
+  /* The anonymised copy every candidate-facing surface must use: the
+     design system forbids naming the hiring company there. Always sent,
+     derived server-side when nobody has written one. */
+  candidate_description: string;
+  candidate_about_company: string;
   /** Closing inside the next week, so the UI can warn. */
   closes_soon: boolean;
   days_until_close: number | null;
@@ -404,6 +409,9 @@ export type CandidateDashboard = {
   };
   recent_applications: Application[];
   recommended_jobs: Job[];
+  /** Three each, with the timestamp their panel is ordered by. */
+  saved_jobs_list: Array<{ job: Job; at: string }>;
+  recently_viewed: Array<{ job: Job; at: string }>;
 };
 
 export type ManagerDashboard = {

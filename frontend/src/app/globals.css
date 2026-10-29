@@ -3,26 +3,38 @@
 /*
  * Design tokens.
  *
- * The palette is Magnum Opus Consultants' own, taken from moc-pty.com:
- * #054B70 petrol blue is the primary across the site and the logo, #8BB7C4 is
- * the accent, #F5F5F5 the page grey. Poppins is the brand typeface.
+ * The source of truth is the MOC UI kit (Figma: "MOC UI kit - V1"), not this
+ * file and not any individual screen. Every colour below is an exact value
+ * from that kit's palette - Brand/Primary, Brand/Secondary, Base, Neutral and
+ * the status ramps - and the comment after each one names which. Nothing here
+ * is sampled, eyeballed or generated between two anchors, which is what these
+ * tokens used to be: a scale built around the website's petrol blue, with
+ * most steps landing a few units off the kit's own.
  *
- * The scale around those two anchors is generated so there are usable hovers,
- * surfaces and borders; 300 and 700 are the exact site values.
+ * So: before adding a colour, find it in the kit. If it is not there, it is
+ * not ours to use.
+ *
+ * Brand/Primary/600 #064B70 is the main brand colour, Brand/Secondary/400
+ * #589DB2 the accent. Poppins is the brand typeface.
+ *
+ * Dark mode is the exception worth knowing about: the kit has no dark
+ * variables (that page is PRO-only) and no MOC screen has been designed
+ * dark, so the dark block below is this file's own reading of the palette
+ * rather than anything a designer drew.
  */
 
 :root {
   /* Surfaces */
   --canvas: #f3f4f6;
   --card: #f9fbfb;
-  --card-muted: #f7f9fa;
+  --card-muted: #f9fafb; /* Neutral/50 */
   /* The grey the frame sets behind grouped cards, so a band of them reads
      as one block. --card-muted is too close to white to do this job. */
   --trough: #e5e7eb;
   --line: #e5e7eb;
   /* The hairline between rows inside a panel, lighter than the panel's own
      edge so a long list does not read as a grid. */
-  --line-soft: #f1f3f4;
+  --line-soft: #f3f4f6; /* Neutral/100 */
   --line-strong: #d5dbde;
 
   /* Ink */
@@ -32,46 +44,57 @@
   --ink-muted: #4b5563;
   --ink-subtle: #6b7280;
   --ink-faint: #9ca3af;
+  --ink-ghost: #d1d5db; /* Neutral/400 */
+
+  /* Match reasons on a recommended job card (frame 118:3834). A lighter
+     pair than the status badges, which sit on Green/100 - these sit on the
+     50s so several of them together stay quiet. */
+  --match-met: #15803d; /* Green/700 */
+  --match-met-bg: #f0fdf4; /* Green/50 */
+  --match-partial: #ca8a04; /* Yellow/600 */
+  --match-partial-bg: #fefce8; /* Yellow/50 */
+  --match-none: #b91c1c; /* Red/700 */
+  --match-none-bg: #fef2f2; /* Red/50 */
 
   /* Brand */
-  --brand-50: #f2f7f9;
-  --brand-100: #dbe9ef;
-  --brand-200: #bcd6e0;
-  --brand-300: #8bb7c4; /* site accent */
-  --brand-400: #5e95a9;
-  --brand-500: #35758f;
-  --brand-600: #155e7e;
+  --brand-50: #f1f9fa; /* Brand/Secondary/50 */
+  --brand-100: #dcedf1; /* Brand/Secondary/100 */
+  --brand-200: #bedbe3; /* Brand/Secondary/200 */
+  --brand-300: #91c2cf; /* Brand/Secondary/300 */ /* site accent */
+  --brand-400: #589db2; /* Brand/Secondary/400 */
+  --brand-500: #418399; /* Brand/Secondary/500 */
+  --brand-600: #12618b; /* Brand/Primary/500 */
   --brand-700: #064b70; /* site primary */
   --brand-800: #073c58;
-  --brand-900: #04304a;
+  --brand-900: #073046; /* Brand/Primary/800 */
   /* Brand/Secondary/400 - main, from the design system frame. The rail's
      New Job button and the profile panel's Save both use it. */
   --brand-secondary-50: #f1f9fa;
   --brand-secondary-100: #dcedf1;
   --brand-secondary-200: #bedbe3;
   --brand-secondary: #589db2;
-  --brand-secondary-hover: #4a8a9e;
+  --brand-secondary-hover: #418399; /* Brand/Secondary/500 */
   --brand-secondary-ink: #f9fbfb;
 
   /* The manager rail, sampled from the approved frame. Near-black with a
      blue cast, not the brand navy — and fixed in both themes, because
      brand-900 inverts for dark mode, which turned the rail near-white. */
   --sidebar: #08151c;
-  --sidebar-hover: #1e2532;
-  --sidebar-line: #1b272e;
+  --sidebar-hover: #1d2533; /* Neutral/900 */
+  --sidebar-line: #374151; /* Neutral/800 */
   /* Fixed like the rail itself: --brand-ink flips dark for dark
      mode, which on a rail that never changes is 1.22:1.
      15.3:1 and 6.3:1 on the rail. */
-  --sidebar-ink: #e8eaed;
-  --sidebar-ink-muted: #92989d;
+  --sidebar-ink: #e5e7eb; /* Neutral/200 */
+  --sidebar-ink-muted: #9ca3af; /* Neutral/500 */
   /* The rail's own two buttons, which are not the page's brand blue:
      a muted teal for New Job and a slate for View all jobs. */
   --sidebar-accent: var(--brand-secondary);
   --sidebar-accent-hover: var(--brand-secondary-hover);
-  --sidebar-surface: #384150;
-  --sidebar-surface-hover: #434d5d;
-  --brand-ink: #e9f1f5;
-  --brand-ink-muted: #9fbccb;
+  --sidebar-surface: #374151; /* Neutral/800 */
+  --sidebar-surface-hover: #4b5563; /* Neutral/700 */
+  --brand-ink: #f9fbfb; /* Base/White */
+  --brand-ink-muted: #91c2cf; /* Brand/Secondary/300 */
 
   /* The "Already applied" chip. Its own tokens because it cannot be built
      from the brand ramp: the frame's pale teal on paler teal is a deliberate
@@ -94,12 +117,12 @@
      the nearest step on the same hue that clears 4.5 (4.51:1),
      and it still reads as a raised button against the panel at
      2.10:1. */
-  --panel: #0a4a6e;
-  --panel-track: #063b59;
-  --panel-ink: #ffffff;
-  --panel-ink-muted: #a9c6d6;
-  --panel-action: #447e94;
-  --panel-action-hover: #386a7e;
+  --panel: #064b70; /* Brand/Primary/600 */
+  --panel-track: #073c58; /* Brand/Primary/700 */
+  --panel-ink: #f9fbfb; /* Base/White */
+  --panel-ink-muted: #91c2cf; /* Brand/Secondary/300 */
+  --panel-action: #418399; /* Brand/Secondary/500 */
+  --panel-action-hover: #386c82; /* Brand/Secondary/600 */
 
   /*
    * The neutral band behind the profile-completion prompt. The design's grey
@@ -110,6 +133,12 @@
 
   /* Status */
   --green: #15803d;
+  /* My Profile completion rows (11:4976). Green/500 marks a finished
+     section - its bar and its "Completed!" - and Green/600 the glyph in the
+     24px featured icon beside the label. Both are distinct from --green
+     (Green/700), which is badge text on a Green/100 fill. */
+  --section-done: #22c55e; /* Green/500 */
+  --section-done-icon: #16a34a; /* Green/600 */
   --green-bg: #dcfce7;
   /* Orange/700, not the frame's Orange/600 (#EA580C): that is 3.1:1 on
      the Orange/100 pill and fails AA for 12px text. This is the next
@@ -118,135 +147,174 @@
   --orange-bg: #ffedd5;
   --purple: #9333ea;
   --purple-bg: #f3e8ff;
-  --grey: #5b6b76;
-  --grey-bg: #eef1f3;
+  --grey: #6b7280; /* Neutral/600 */
+  --grey-bg: #f3f4f6; /* Neutral/100 */
   --yellow: #a16207;
-  --yellow-bg: #fdf3d4;
+  --closing-soon: #eab308; /* Yellow/500 */
+  --yellow-bg: #fef9c3; /* Yellow/100 */
   --rose: #be123c;
-  --rose-bg: #fde8ec;
-  --info: #055f7e;
-  --info-bg: #d9eef5;
+  --rose-bg: #ffe4e6; /* Rose/100 */
+  --info: #12618b; /* Brand/Primary/500 */
+  --info-bg: #dcedf1; /* Brand/Secondary/100 */
 
   /* Gradients, used sparingly — the brand reads as flat and utilitarian. */
-  --gradient-brand: linear-gradient(135deg, #04304a, #054b70 55%, #155e7e);
-  --gradient-brand-soft: linear-gradient(90deg, #bcd6e0, #dbe9ef);
+  --gradient-brand: linear-gradient(135deg, #073046, #064b70 55%, #12618b); /* Brand/Primary 800 -> 600 -> 500 */
+  --gradient-brand-soft: linear-gradient(90deg, #bedbe3, #dcedf1); /* Brand/Secondary 200 -> 100 */
+}
+
+/*
+ * `dark:` utilities, taught the same rule the tokens below follow: the
+ * device setting unless the reader has explicitly chosen light, plus the
+ * explicit dark choice. Without this Tailwind's own `dark:` only watches
+ * prefers-color-scheme and ignores the portal's theme switch entirely.
+ */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(
+        :root:not([data-theme="light"]),
+        :root:not([data-theme="light"]) *
+      ) {
+      @slot;
+    }
+  }
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --canvas: #0b1620;
-    --card: #11212c;
-    --card-muted: #162936;
+    --canvas: #08151c; /* Base/Black */
+    --card: #081d29; /* Brand/Primary/950 */
+    --card-muted: #192933; /* Brand/Secondary/950 */
     /* 1.29:1 and 1.71:1 against the card before — invisible. */
-    --trough: #0c1922;
-    --line: #304c5f;
-    --line-soft: #22394a;
-    --line-strong: #44677d;
+    --trough: #111827; /* Neutral/950 */
+    --line: #2e4653; /* Brand/Secondary/800 */
+    --line-soft: #233742; /* Brand/Secondary/900 */
+    --line-strong: #33596b; /* Brand/Secondary/700 */
 
-    --ink: #e4edf2;
-    --ink-body: #c3d3dc;
-    --ink-strong: #f2f7fa;
-    --ink-muted: #9db1bd;
-    --ink-subtle: #768c99;
-    --ink-faint: #5e7381;
+    --ink: #e5e7eb; /* Neutral/200 */
+    --ink-body: #d5dbde; /* Neutral/300 */
+    --ink-strong: #f9fbfb; /* Base/White */
+    --ink-muted: #d1d5db; /* Neutral/400 */
+    --ink-subtle: #9ca3af; /* Neutral/500 */
+    --ink-faint: #6b7280; /* Neutral/600 */
 
-    --applied-bg: #162936;
-    --applied-ink: #5c7382;
+    --applied-bg: #192933; /* Brand/Secondary/950 */
+    --applied-ink: #91c2cf; /* Brand/Secondary/300 */
 
-    --brand-50: #0e2735;
-    --brand-100: #123344;
-    --brand-200: #17485f;
-    --brand-300: #2d7190;
-    --brand-400: #4d93ad;
-    --brand-500: #6fadc2;
-    --brand-600: #8bb7c4;
-    --brand-700: #a7cbd7;
+    --brand-50: #082737; /* Brand/Primary/900 */
+    --brand-100: #073046; /* Brand/Primary/800 */
+    --brand-200: #073c58; /* Brand/Primary/700 */
+    --brand-300: #12618b; /* Brand/Primary/500 */
+    --brand-400: #2a81ad; /* Brand/Primary/400 */
+    --brand-500: #5ba8cf; /* Brand/Primary/300 */
+    --brand-600: #91c2cf; /* Brand/Secondary/300 */
+    --brand-700: #9bd4f0; /* Brand/Primary/200 */
     /* The ramp inverts in dark mode, so text on a brand fill must too:
        white on #a7cbd7 is 1.73:1. */
-  --brand-ink: #08202c;
-    --brand-800: #c3dde5;
-    --brand-900: #dcebf0;
-    --brand-secondary-50: #10323c;
-    --brand-secondary-100: #17414e;
-    --brand-secondary-200: #1f5566;
-    --brand-secondary: #4a8a9e;
+  --brand-ink: #081d29; /* Brand/Primary/950 */
+    --brand-800: #bedbe3; /* Brand/Secondary/200 */
+    --brand-900: #dcedf1; /* Brand/Secondary/100 */
+    --brand-secondary-50: #233742; /* Brand/Secondary/900 */
+    --brand-secondary-100: #2e4653; /* Brand/Secondary/800 */
+    --brand-secondary-200: #33596b; /* Brand/Secondary/700 */
+    --brand-secondary: #418399; /* Brand/Secondary/500 */
     --brand-secondary-hover: #589db2;
     --brand-secondary-ink: #08151c;
 
-    --band: #233442;
+    --band: #233742; /* Brand/Secondary/900 */
 
+    --match-met: #4ade80; /* Green/400 */
+    --match-met-bg: #052e16; /* Green/950 */
+    --match-partial: #fde047; /* Yellow/300 */
+    --match-partial-bg: #422006; /* Yellow/950 */
+    --match-none: #fca5a5; /* Red/300 */
+    --match-none-bg: #450a0a; /* Red/950 */
     --green: #4ade80;
-    --green-bg: #0f3523;
+  --section-done: #4ade80; /* Green/400 */
+  --section-done-icon: #4ade80; /* Green/400 */
+    --green-bg: #052e16; /* Green/950 */
     --orange: #fb923c;
-    --orange-bg: #3a2410;
+    --orange-bg: #431407; /* Orange/950 */
     --purple: #c084fc;
-    --purple-bg: #2c1640;
+    --purple-bg: #3b0764; /* Purple/950 */
     --grey: #94a3b8;
-    --grey-bg: #1b2c3b;
-    --yellow: #fcd34d;
-    --yellow-bg: #362b0f;
+    --grey-bg: #233742; /* Brand/Secondary/900 */
+    --yellow: #fde047; /* Yellow/300 */
+  --closing-soon: #fde047; /* Yellow/300 */
+    --yellow-bg: #422006; /* Yellow/950 */
     --rose: #fb7185;
-    --rose-bg: #3a1618;
-    --info: #67e8f9;
-    --info-bg: #0d3340;
+    --rose-bg: #4c0519; /* Rose/950 */
+    --info: #9bd4f0; /* Brand/Primary/200 */
+    --info-bg: #073046; /* Brand/Primary/800 */
   }
 }
 
 :root[data-theme="dark"] {
-  --canvas: #0b1620;
-  --card: #11212c;
-  --card-muted: #162936;
-  --trough: #0c1922;
-  --line: #304c5f;
-  --line-soft: #22394a;
-  --line-strong: #44677d;
+  --canvas: #08151c; /* Base/Black */
+  --card: #081d29; /* Brand/Primary/950 */
+  --card-muted: #192933; /* Brand/Secondary/950 */
+  --trough: #111827; /* Neutral/950 */
+  --line: #2e4653; /* Brand/Secondary/800 */
+  --line-soft: #233742; /* Brand/Secondary/900 */
+  --line-strong: #33596b; /* Brand/Secondary/700 */
 
-  --ink: #e4edf2;
-  --ink-body: #c3d3dc;
-  --ink-strong: #f2f7fa;
-  --ink-muted: #9db1bd;
-  --ink-subtle: #768c99;
-  --ink-faint: #5e7381;
+  --ink: #e5e7eb; /* Neutral/200 */
+  --ink-body: #d5dbde; /* Neutral/300 */
+  --ink-strong: #f9fbfb; /* Base/White */
+  --ink-muted: #d1d5db; /* Neutral/400 */
+  --ink-subtle: #9ca3af; /* Neutral/500 */
+  --ink-faint: #6b7280; /* Neutral/600 */
 
-  --applied-bg: #162936;
-  --applied-ink: #5c7382;
+  --applied-bg: #192933; /* Brand/Secondary/950 */
+  --applied-ink: #91c2cf; /* Brand/Secondary/300 */
 
-  --brand-50: #0e2735;
-  --brand-100: #123344;
-  --brand-200: #17485f;
-  --brand-300: #2d7190;
-  --brand-400: #4d93ad;
-  --brand-500: #6fadc2;
-  --brand-600: #8bb7c4;
-  --brand-700: #a7cbd7;
+  --brand-50: #082737; /* Brand/Primary/900 */
+  --brand-100: #073046; /* Brand/Primary/800 */
+  --brand-200: #073c58; /* Brand/Primary/700 */
+  --brand-300: #12618b; /* Brand/Primary/500 */
+  --brand-400: #2a81ad; /* Brand/Primary/400 */
+  --brand-500: #5ba8cf; /* Brand/Primary/300 */
+  --brand-600: #91c2cf; /* Brand/Secondary/300 */
+  --brand-700: #9bd4f0; /* Brand/Primary/200 */
     /* The ramp inverts in dark mode, so text on a brand fill must too:
        white on #a7cbd7 is 1.73:1. */
-  --brand-ink: #08202c;
-  --brand-800: #c3dde5;
-  --brand-900: #dcebf0;
-  --brand-secondary-50: #10323c;
-  --brand-secondary-100: #17414e;
-  --brand-secondary-200: #1f5566;
-  --brand-secondary: #4a8a9e;
+  --brand-ink: #081d29; /* Brand/Primary/950 */
+  --brand-800: #bedbe3; /* Brand/Secondary/200 */
+  --brand-900: #dcedf1; /* Brand/Secondary/100 */
+  --brand-secondary-50: #233742; /* Brand/Secondary/900 */
+  --brand-secondary-100: #2e4653; /* Brand/Secondary/800 */
+  --brand-secondary-200: #33596b; /* Brand/Secondary/700 */
+  --brand-secondary: #418399; /* Brand/Secondary/500 */
   --brand-secondary-hover: #589db2;
   --brand-secondary-ink: #08151c;
 
-  --band: #233442;
+  --band: #233742; /* Brand/Secondary/900 */
 
+  --match-met: #4ade80; /* Green/400 */
+  --match-met-bg: #052e16; /* Green/950 */
+  --match-partial: #fde047; /* Yellow/300 */
+  --match-partial-bg: #422006; /* Yellow/950 */
+  --match-none: #fca5a5; /* Red/300 */
+  --match-none-bg: #450a0a; /* Red/950 */
   --green: #4ade80;
-  --green-bg: #0f3523;
+  --section-done: #4ade80; /* Green/400 */
+  --section-done-icon: #4ade80; /* Green/400 */
+  --green-bg: #052e16; /* Green/950 */
   --orange: #fb923c;
-  --orange-bg: #3a2410;
+  --orange-bg: #431407; /* Orange/950 */
   --purple: #c084fc;
-  --purple-bg: #2c1640;
+  --purple-bg: #3b0764; /* Purple/950 */
   --grey: #94a3b8;
-  --grey-bg: #1b2c3b;
-  --yellow: #fcd34d;
-  --yellow-bg: #362b0f;
+  --grey-bg: #233742; /* Brand/Secondary/900 */
+  --yellow: #fde047; /* Yellow/300 */
+  --closing-soon: #fde047; /* Yellow/300 */
+  --yellow-bg: #422006; /* Yellow/950 */
   --rose: #fb7185;
-  --rose-bg: #3a1618;
-  --info: #67e8f9;
-  --info-bg: #0d3340;
+  --rose-bg: #4c0519; /* Rose/950 */
+  --info: #9bd4f0; /* Brand/Primary/200 */
+  --info-bg: #073046; /* Brand/Primary/800 */
 }
 
 @theme inline {
@@ -262,6 +330,7 @@
   --color-ink-muted: var(--ink-muted);
   --color-ink-subtle: var(--ink-subtle);
   --color-ink-faint: var(--ink-faint);
+  --color-ink-ghost: var(--ink-ghost);
 
   --color-brand-50: var(--brand-50);
   --color-brand-100: var(--brand-100);
@@ -304,6 +373,8 @@
   --color-band: var(--band);
 
   --color-status-green: var(--green);
+  --color-section-done: var(--section-done);
+  --color-section-done-icon: var(--section-done-icon);
   --color-status-green-bg: var(--green-bg);
   --color-status-orange: var(--orange);
   --color-status-orange-bg: var(--orange-bg);
@@ -312,6 +383,14 @@
   --color-status-grey: var(--grey);
   --color-status-grey-bg: var(--grey-bg);
   --color-status-yellow: var(--yellow);
+  --color-closing-soon: var(--closing-soon);
+  --color-match-met: var(--match-met);
+  --color-match-met-bg: var(--match-met-bg);
+  --color-match-partial: var(--match-partial);
+  --color-match-partial-bg: var(--match-partial-bg);
+  --color-match-none: var(--match-none);
+  --color-match-none-bg: var(--match-none-bg);
+
   --color-status-yellow-bg: var(--yellow-bg);
   --color-status-rose: var(--rose);
   --color-status-rose-bg: var(--rose-bg);

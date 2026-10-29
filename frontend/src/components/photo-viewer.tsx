@@ -27,7 +27,7 @@ export function PhotoViewer({
   url: string;
   initials: string;
   name: string;
-  size?: "md" | "lg";
+  size?: "md" | "lg" | "xl";
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
 
@@ -44,9 +44,15 @@ export function PhotoViewer({
   }, []);
 
   // Without a photo there is nothing to open.
-  if (!url) return <Avatar initials={initials} size={size} />;
+  if (!url)
+    return size === "xl" ? (
+      <Avatar initials={initials} size="2xl" tone="soft" />
+    ) : (
+      <Avatar initials={initials} size={size} />
+    );
 
-  const box = size === "lg" ? "size-12" : "size-9";
+  const box =
+    size === "xl" ? "size-16" : size === "lg" ? "size-12" : "size-9";
 
   return (
     <>

@@ -59,6 +59,7 @@ export function ManagerShell({
         sidebarClassName="bg-sidebar"
         width="w-61"
         label="jobs sidebar"
+        tone="dark"
       >
         {children}
       </SidebarLayout>

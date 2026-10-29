@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { ThemeToggle } from "@/components/theme-toggle";
+import { PortalFooter } from "@/components/portal-footer";
 import { Card, PageHeading, SectionHeading } from "@/components/ui/primitives";
 import { api, type AuthUser, type MutationResult } from "@/lib/api";
 
@@ -67,6 +68,8 @@ export default function SettingsPage() {
           <DeleteAccount />
         </Card>
       </section>
+
+      <PortalFooter />
     </div>
   );
 }

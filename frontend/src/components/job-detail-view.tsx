@@ -51,13 +51,6 @@ export function JobDetailView({
 
           <dl className="space-y-2 text-sm">
             <div className="flex items-start gap-2">
-              <Icon name="building" className="mt-0.5 size-4 text-ink-subtle" />
-              <div>
-                <dt className="text-xs text-ink-subtle">Hiring company</dt>
-                <dd className="font-medium text-ink">{job.company}</dd>
-              </div>
-            </div>
-            <div className="flex items-start gap-2">
               <Icon name="calendar" className="mt-0.5 size-4 text-ink-subtle" />
               <div>
                 <dt className="text-xs text-ink-subtle">Applications close</dt>
@@ -125,7 +118,9 @@ export function JobDetailView({
       <section className="mt-6">
         <SectionHeading title="Job specification" />
         <Card className="p-6">
-          <p className="leading-relaxed text-ink-muted">{job.description}</p>
+          <p className="leading-relaxed text-ink-muted">
+            {job.candidate_description}
+          </p>
 
           {job.required_skills.length > 0 ? (
             <div className="mt-6">

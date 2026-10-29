@@ -174,6 +174,12 @@ export function GoogleButton({
   );
 }
 
+/*
+ * The Google and LinkedIn marks below are the only colours in the app that
+ * are not from the MOC UI kit, and deliberately so: a provider's logo has to
+ * be its own colours to be recognised, and both brands require it. Do not
+ * "correct" them to the palette.
+ */
 function GoogleMark() {
   return (
     <svg viewBox="0 0 48 48" aria-hidden className="size-[18px] shrink-0">

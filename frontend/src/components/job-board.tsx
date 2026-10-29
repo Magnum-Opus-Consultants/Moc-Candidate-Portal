@@ -6,7 +6,7 @@ import {
   SaveForLaterButton,
   ShareButton,
 } from "@/components/job-actions";
-import { Icon } from "@/components/ui/icon";
+import { Icon, type IconName } from "@/components/ui/icon";
 import { Chip, cn } from "@/components/ui/primitives";
 import { formatDate, relativeDays, skillName, type Job } from "@/lib/api";
 
@@ -213,60 +213,103 @@ export function JobResultCard({
   /** Whether this job is already on the seeker's saved list. */
   saved?: boolean;
 }) {
+  /*
+   * Frame 147:15581. Title and bookmark, the role category under it, three
+   * lines of the description, a rule, then the attribute badges - work
+   * setup and salary on the left, the timezone pushed right.
+   *
+   * The company name is deliberately absent: the card component carries a
+   * hard rule that nothing candidate-facing may name or reveal the hiring
+   * company, and this card used to print job.company straight under the
+   * title.
+   */
   return (
     <article
       className={cn(
-        "relative rounded-xl border bg-card p-4 transition-shadow",
-        selected
-          ? "border-brand-700 ring-1 ring-brand-700"
-          : "border-line hover:shadow-md",
+        "relative flex flex-col gap-4 rounded-2xl bg-card px-6 py-5 shadow-sm transition-shadow",
+        selected ? "ring-2 ring-inset ring-brand-300" : "hover:shadow-md",
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <span className="rounded bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">
+      <div className="flex flex-col">
+        <div className="flex items-center justify-between gap-2">
+          {/* break-words: a title with no spaces in it - a pasted URL, a
+              long compound word - cannot wrap, and bursts the card. */}
+          <h3 className="min-w-0 break-words text-lg font-semibold leading-7 text-ink-strong">
+            <Link
+              href={selectJobHref(params, job.id, base)}
+              scroll={false}
+              className="before:absolute before:inset-0"
+            >
+              {job.title}
+            </Link>
+          </h3>
+          {/* relative z-10 keeps it above the title's stretched link, which
+              covers the whole card. */}
+          {/* flex, not a plain span: the button inside would otherwise
+              sit on the text baseline and make this row 31px against
+              the frame's 28. */}
+          <span className="relative z-10 flex shrink-0">
+            <SaveButton jobId={job.id} initialSaved={saved} bare />
+          </span>
+        </div>
+
+        <p className="text-sm font-semibold leading-5 text-brand-500">
           {job.role_category}
-        </span>
-        {/* relative z-10 keeps it above the title's stretched link, which
-            covers the whole card. */}
-        <span className="relative z-10 -mr-1 -mt-1">
-          <SaveButton jobId={job.id} initialSaved={saved} compact />
-        </span>
+        </p>
       </div>
 
-      {/* break-words: a title with no spaces in it — a pasted URL, a long
-          compound word — cannot wrap, and bursts the card on a phone. */}
-      <h3 className="mt-2 text-[17px] font-semibold leading-snug break-words text-ink-strong">
-        <Link
-          href={selectJobHref(params, job.id, base)}
-          scroll={false}
-          className="before:absolute before:inset-0"
-        >
-          {job.title}
-        </Link>
-      </h3>
-
-      <p className="mt-1.5 text-sm text-ink-muted">{job.company}</p>
-
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        <CheckChip>{job.salary_label}</CheckChip>
-        <CheckChip>{job.employment_label}</CheckChip>
-        <CheckChip>{job.work_setup_label}</CheckChip>
-      </div>
-
-      {job.applicant_count > 0 ? (
-        <p className="mt-3 flex items-center gap-2 rounded-lg bg-card-muted px-3 py-2 text-xs text-ink-muted">
-          <Icon name="users" className="size-3.5 shrink-0" />
-          {job.applicant_count}{" "}
-          {job.applicant_count === 1 ? "person has" : "people have"} applied
+      {job.candidate_description ? (
+        <p className="line-clamp-3 text-sm leading-5 text-ink-strong">
+          {job.candidate_description}
         </p>
       ) : null}
 
-      <p className="mt-3 text-xs text-ink-subtle">
-        {job.posted_at
-          ? `Posted ${relativeDays(job.posted_at).toLowerCase()}`
-          : "Just posted"}
-      </p>
+      <div aria-hidden className="relative h-0 w-full">
+        <span className="absolute inset-x-0 -top-px block h-px bg-line" />
+      </div>
+
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <AttributeBadge icon="monitor-01">
+            {job.work_setup_label}
+          </AttributeBadge>
+          <AttributeBadge icon="coins-stacked-01">
+            {job.salary_label}
+          </AttributeBadge>
+        </div>
+        <AttributeBadge icon="clock" plain>
+          {job.timezone_label}
+        </AttributeBadge>
+      </div>
     </article>
+  );
+}
+
+/**
+ * A job attribute badge (224:10011): a 12px glyph and a Neutral/700 label on
+ * Neutral/100, or bare where the frame drops the fill.
+ */
+export function AttributeBadge({
+  icon,
+  children,
+  plain = false,
+}: {
+  icon: IconName;
+  children: React.ReactNode;
+  /** The timezone badge on a card carries no fill. */
+  plain?: boolean;
+}) {
+  if (!children) return null;
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center justify-center gap-1 rounded-2xl py-0.5 pl-1.5 pr-2 text-xs font-medium leading-[18px] text-ink-muted",
+        !plain && "bg-canvas",
+      )}
+    >
+      <Icon name={icon} className="size-3 shrink-0" />
+      {children}
+    </span>
   );
 }
 
@@ -410,47 +453,69 @@ export function JobDetailPane({ job }: { job: Job }) {
      * instead of the description.
      */
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="border-b border-line px-7 py-6">
-        {/* No job ID here: it is an internal row number, not something a
-            candidate quotes or searches for. */}
-        <h2 className="text-2xl font-semibold leading-tight tracking-tight break-words text-ink-strong">
-          {job.title}
-        </h2>
-
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          <Chip icon={<Icon name="building" className="size-3" />}>
-            {job.work_setup_label}
-          </Chip>
-          <Chip>{job.salary_label}</Chip>
-          <Chip>{job.experience_label}</Chip>
-          <Chip>{job.employment_label}</Chip>
+      {/* Frame 147:15502 / 147:15507: the title with its job ID, the four
+          attribute badges, a one-line summary, then the actions. The pane
+          scrolls under this block, so it keeps a rule the static frame has
+          no need for. */}
+      <div className="border-b border-line px-8 py-8">
+        <div className="flex items-start justify-between gap-4">
+          <h2 className="min-w-0 break-words text-3xl font-semibold leading-[38px] tracking-tight text-ink-strong">
+            {job.title}
+          </h2>
+          <span className="shrink-0 pt-2.5 text-xs leading-[18px] text-ink-faint">
+            Job ID: {job.id}
+          </span>
         </div>
 
-        <p className="mt-4 text-sm leading-relaxed text-ink">
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <AttributeBadge icon="monitor-01">
+            {job.work_setup_label}
+          </AttributeBadge>
+          <AttributeBadge icon="coins-stacked-01">
+            {job.salary_label}
+          </AttributeBadge>
+          <AttributeBadge icon="clipboard">{job.experience_label}</AttributeBadge>
+          <AttributeBadge icon="briefcase-02">
+            {job.employment_label}
+          </AttributeBadge>
+        </div>
+
+        {/* No company name: the component carries the hard rule that nothing
+            candidate-facing may reveal the hiring company, so this says what
+            kind of business it is and where, and nothing more. */}
+        <p className="mt-4 text-xs font-medium leading-[18px] text-ink-subtle">
           This {job.work_setup_label.toLowerCase()} job is based in{" "}
           {job.location || job.company_location} for a{" "}
           {job.company_industry.toLowerCase() || "professional services"} company
-          in {job.company_location || job.location}.
+          with offices across {job.company_location || job.location}.
         </p>
 
-        <div className="mt-5 flex flex-wrap items-center gap-2">
+        <div className="mt-4 flex flex-wrap items-center gap-3">
           <ApplyButton
             jobId={job.id}
             initialApplied={job.has_applied ?? false}
             className="min-w-48 flex-1"
+            buttonClassName="flex w-full items-center justify-center rounded-lg border border-brand-secondary bg-brand-secondary px-[18px] py-2.5 text-base font-semibold leading-6 text-brand-secondary-ink shadow-xs transition-colors hover:border-brand-secondary-hover hover:bg-brand-secondary-hover"
           />
-          <SaveForLaterButton jobId={job.id} initialSaved={job.is_saved ?? false} />
-          <ShareButton jobId={job.id} />
+          <SaveForLaterButton
+            jobId={job.id}
+            initialSaved={job.is_saved ?? false}
+            className="inline-flex w-[147px] items-center justify-center rounded-lg border border-brand-secondary-100 bg-brand-secondary-100 px-[18px] py-2.5 text-base font-semibold leading-6 text-brand-800 shadow-xs transition-colors hover:border-brand-secondary-200 hover:bg-brand-secondary-200"
+          />
+          <ShareButton
+            jobId={job.id}
+            className="inline-flex items-center justify-center rounded-lg p-3 text-ink-muted transition-colors hover:bg-canvas hover:text-ink-strong"
+          />
         </div>
       </div>
 
       {/* Prose is capped so the description stays readable on a wide pane. */}
       <div className="min-h-0 flex-1 overflow-y-auto px-7 py-6 [&>*]:max-w-3xl">
-        {job.about_company ? (
+        {job.candidate_about_company ? (
           <section>
             <h3 className="font-semibold text-ink-strong">About the company:</h3>
             <p className="mt-2 leading-relaxed text-ink-muted">
-              {job.about_company}
+              {job.candidate_about_company}
             </p>
           </section>
         ) : null}

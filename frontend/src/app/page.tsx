@@ -13,6 +13,7 @@ import {
   withParam,
   type Params,
 } from "@/components/job-board";
+import { BoardSearchHeader } from "@/components/board-search-header";
 import { LogoMark } from "@/components/logo";
 import {
   Hero,
@@ -39,21 +40,16 @@ const COPYRIGHT_YEAR = new Date().getFullYear();
 export default function Home({ searchParams }: PageProps<"/">) {
   return (
     <div className="flex min-h-dvh flex-col bg-canvas">
+      {/* The frame has two states: the landing page leads with the hero and
+          the role categories, and once a search is running they give way to
+          a 120px band with the search in it (147:15482). */}
       <Suspense fallback={<HeaderSkeleton />}>
-        <Masthead />
-      </Suspense>
-
-      <Suspense fallback={<HeroSkeleton />}>
-        <HeroBand searchParams={searchParams} />
-      </Suspense>
-
-      <Suspense fallback={<CategoriesSkeleton />}>
-        <Categories searchParams={searchParams} />
+        <TopOfPage searchParams={searchParams} />
       </Suspense>
 
       <main
         id="results"
-        className="mx-auto w-full max-w-[1600px] flex-1 scroll-mt-4 px-5 pb-12"
+        className="mx-auto w-full max-w-[1320px] flex-1 scroll-mt-4 px-5 pb-12"
       >
         <Suspense fallback={<ResultsSkeleton />}>
           <Results searchParams={searchParams} />
@@ -65,32 +61,92 @@ export default function Home({ searchParams }: PageProps<"/">) {
   );
 }
 
-/** The masthead needs to know whether anyone is signed in. */
-async function Masthead() {
-  const me = await api.me();
-  return <SiteHeader user={me.ok ? me.data : null} />;
+/**
+ * Show or hide the filter controls. Built by hand rather than with
+ * withParam, which drops `job` - that would close the detail pane every
+ * time someone opened the filters.
+ */
+function filtersHref(params: Params): string {
+  const next = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v && k !== "filters") next.set(k, v);
+  }
+  if (!params.filters) next.set("filters", "1");
+  const qs = next.toString();
+  return qs ? `/?${qs}` : "/";
 }
 
-async function HeroBand({
+/** Whether the visitor has searched or narrowed anything yet. */
+function isSearching(params: Params): boolean {
+  if (params.q) return true;
+  return [...FILTER_GROUPS.map((g) => g.key), "role_category"].some(
+    (key) => selectedIn(params, key).length > 0,
+  );
+}
+
+/** One chip per thing being searched on, each able to drop itself. */
+function searchChips(params: Params) {
+  const chips: Array<{ label: string; clearHref: string }> = [];
+
+  if (params.q) {
+    chips.push({ label: `"${params.q}"`, clearHref: withParam(params, "q") });
+  }
+
+  const groups = [
+    ...FILTER_GROUPS,
+    { key: "role_category", label: "Discipline", options: [] as const },
+  ];
+  for (const group of groups) {
+    for (const value of selectedIn(params, group.key)) {
+      const option = (group.options as ReadonlyArray<readonly [string, string]>)
+        .find(([v]) => v === value);
+      chips.push({
+        label: option ? option[1] : value,
+        clearHref: toggleParam(params, group.key, value),
+      });
+    }
+  }
+
+  return chips;
+}
+
+/**
+ * The masthead, and above the results either the hero and categories or the
+ * search band. Both need to know whether anyone is signed in.
+ */
+async function TopOfPage({
   searchParams,
 }: {
   searchParams: PageProps<"/">["searchParams"];
 }) {
-  const params = (await searchParams) as Params;
-  return <Hero params={params} />;
-}
-
-async function Categories({
-  searchParams,
-}: {
-  searchParams: PageProps<"/">["searchParams"];
-}) {
-  const [params, result] = await Promise.all([
+  const [params, me] = await Promise.all([
     searchParams as Promise<Params>,
-    api.jobCategories(),
+    api.me(),
   ]);
-  if (!result.ok) return null;
-  return <RoleCategories categories={result.data.results} params={params} />;
+  const user = me.ok ? me.data : null;
+
+  if (isSearching(params)) {
+    return (
+      <BoardSearchHeader
+        term={params.q ?? ""}
+        chips={searchChips(params)}
+        user={user}
+        filtersHref={filtersHref(params)}
+        filtersOpen={Boolean(params.filters)}
+      />
+    );
+  }
+
+  const categories = await api.jobCategories();
+  return (
+    <>
+      <SiteHeader user={user} />
+      <Hero params={params} />
+      {categories.ok ? (
+        <RoleCategories categories={categories.data.results} params={params} />
+      ) : null}
+    </>
+  );
 }
 
 function HeaderSkeleton() {
@@ -290,85 +346,94 @@ async function Results({
 
   return (
     <>
-      <div className="space-y-3 py-4">
-        <FilterRail
-          groups={FILTER_GROUPS}
-          selected={Object.fromEntries(
-            FILTER_GROUPS.map((g) => [g.key, selectedIn(params, g.key)]),
-          )}
-          facets={result.data.facets}
-          hrefs={Object.fromEntries(
-            FILTER_GROUPS.map((g) => [
-              g.key,
+      {/* The frame goes straight from the "Searching for:" chips to the
+          cards: no filter controls on the page at all. They live behind
+          the sliders button in the search field, which sets ?filters=1. */}
+      {!isSearching(params) || params.filters ? (
+        <div className="space-y-3 py-4">
+          <FilterRail
+            groups={FILTER_GROUPS}
+            selected={Object.fromEntries(
+              FILTER_GROUPS.map((g) => [g.key, selectedIn(params, g.key)]),
+            )}
+            facets={result.data.facets}
+            hrefs={Object.fromEntries(
+              FILTER_GROUPS.map((g) => [
+                g.key,
+                Object.fromEntries(
+                  g.options.map(([value]) => [
+                    value,
+                    toggleParam(params, g.key, value),
+                  ]),
+                ),
+              ]),
+            )}
+            clearHref={withParam(
               Object.fromEntries(
-                g.options.map(([value]) => [
-                  value,
-                  toggleParam(params, g.key, value),
-                ]),
+                Object.entries(params).filter(
+                  ([k]) => !FILTER_GROUPS.some((g) => g.key === k),
+                ),
               ),
-            ]),
-          )}
-          clearHref={withParam(
-            Object.fromEntries(
-              Object.entries(params).filter(
-                ([k]) => !FILTER_GROUPS.some((g) => g.key === k),
-              ),
-            ),
-            "_",
-          )}
-        />
-        <ActiveFilters params={params} />
-      </div>
+              "_",
+            )}
+          />
+          {/* The search band above already lists what is being searched
+              on (147:15486), so this would be a second copy of it. */}
+          {isSearching(params) ? null : <ActiveFilters params={params} />}
+        </div>
+      ) : null}
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
+      <div className="grid items-start gap-8 lg:grid-cols-[416px_minmax(0,832px)] lg:justify-center">
         {/* min-w-0: a grid item defaults to min-width:auto and so refuses to
             shrink below its content. The sort row below cannot wrap, so
             without this the column is forced to its 392px intrinsic width
             and the whole page scrolls sideways on a phone. The lg track
             uses minmax(0,…) for the same reason. */}
         <div className="min-w-0">
-          <div className="flex flex-wrap items-baseline justify-between gap-2 pb-3">
-            <h1 className="text-xl font-semibold tracking-tight text-ink-strong">
-              {searched ? (
-                <>
-                  {count.toLocaleString("en-ZA")}{" "}
-                  {count === 1 ? "job" : "jobs"}
-                  {params.q ? ` for ${params.q}` : ""}
-                </>
-              ) : (
-                "Jobs for you"
-              )}
-            </h1>
+          {isSearching(params) ? null : (
+            <div className="flex flex-wrap items-baseline justify-between gap-2 pb-3">
+              <h1 className="text-xl font-semibold tracking-tight text-ink-strong">
+                {searched ? (
+                  <>
+                    {count.toLocaleString("en-ZA")}{" "}
+                    {count === 1 ? "job" : "jobs"}
+                    {params.q ? ` for ${params.q}` : ""}
+                  </>
+                ) : (
+                  "Jobs for you"
+                )}
+              </h1>
 
-            <div className="flex flex-wrap items-center gap-1 text-sm">
-              <span className="text-ink-subtle">Sort by</span>
-              {(
-                [
-                  ["relevance", "Relevance"],
-                  ["newest", "Newest"],
-                  ["oldest", "Oldest"],
-                ] as const
-              ).map(([value, label]) => (
-                <Link
-                  key={value}
-                  href={withParam(
-                    params,
-                    "sort",
-                    value === "relevance" ? undefined : value,
-                  )}
-                  scroll={false}
-                  className={cn(
-                    "rounded px-2 py-1 transition-colors",
-                    (params.sort ?? "relevance") === value
-                      ? "font-semibold text-brand-700"
-                      : "text-ink-muted hover:text-ink",
-                  )}
-                >
-                  {label}
-                </Link>
-              ))}
+              <div className="flex flex-wrap items-center gap-1 text-sm">
+                <span className="text-ink-subtle">Sort by</span>
+                {(
+                  [
+                    ["relevance", "Relevance"],
+                    ["newest", "Newest"],
+                    ["oldest", "Oldest"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <Link
+                    key={value}
+                    href={withParam(
+                      params,
+                      "sort",
+                      value === "relevance" ? undefined : value,
+                    )}
+                    scroll={false}
+                    className={cn(
+                      "rounded px-2 py-1 transition-colors",
+                      (params.sort ?? "relevance") === value
+                        ? "font-semibold text-brand-700"
+                        : "text-ink-muted hover:text-ink",
+                    )}
+                  >
+                    {label}
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {jobs.length === 0 ? (
             <div className="rounded-xl border border-line bg-card p-12 text-center">
@@ -389,7 +454,7 @@ async function Results({
               </div>
             </div>
           ) : (
-            <ol className="space-y-3">
+            <ol className="space-y-5">
               {jobs.map((job) => (
                 <li key={job.id}>
                   <JobResultCard
@@ -442,7 +507,7 @@ function ResultsSkeleton() {
           <CardSkeleton key={i} className="h-9 w-32 rounded-full" />
         ))}
       </div>
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)]">
+      <div className="grid items-start gap-8 lg:grid-cols-[416px_minmax(0,832px)] lg:justify-center">
         <div className="space-y-3">
           {[0, 1, 2, 3].map((i) => (
             <CardSkeleton key={i} className="h-52 rounded-xl" />

@@ -34,8 +34,11 @@ function readOpen(storageKey: string): boolean {
  * components — they arrive as `sidebar` and `children`, so opening a posting
  * still streams from the server; only the open/closed state is client-side.
  *
- * The toggle lives in the header rather than floating over the rail, so it
- * sits in the same place whether the sidebar is open or shut.
+ * The toggle sits in the rail itself, top-right, beside whatever that shell
+ * puts at the top - the logo for a candidate, the profile row for a manager.
+ * It cannot stay there when the rail is shut, because the rail is then zero
+ * width, so a single button takes its place at the edge of the page: the one
+ * piece of chrome needed to get the rail back.
  *
  * The choice is remembered per browser under `storageKey`: a manager who
  * closes the rail to read a wide table does not want it back on every
@@ -47,10 +50,13 @@ function Toggle({
   open,
   onClick,
   label,
+  tone = "light",
 }: {
   open: boolean;
   onClick: () => void;
   label: string;
+  /** The manager rail is near-black, so its toggle needs the rail's inks. */
+  tone?: "light" | "dark";
 }) {
   return (
     <button
@@ -59,7 +65,12 @@ function Toggle({
       aria-expanded={open}
       aria-label={open ? `Close the ${label}` : `Open the ${label}`}
       title={open ? `Close the ${label}` : `Open the ${label}`}
-      className="mr-1 hidden size-8 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-card-muted hover:text-ink lg:grid"
+      className={cn(
+        "hidden size-8 place-items-center rounded-lg transition-colors lg:grid",
+        tone === "dark"
+          ? "text-sidebar-ink-muted hover:bg-sidebar-hover hover:text-sidebar-ink"
+          : "text-ink-muted hover:bg-card-muted hover:text-ink",
+      )}
     >
       <Icon
         name="sidebar"
@@ -78,6 +89,7 @@ export function SidebarLayout({
   sidebarClassName,
   navClassName = "gap-1",
   label = "sidebar",
+  tone = "light",
 }: {
   sidebar: ReactNode;
   /**
@@ -98,6 +110,8 @@ export function SidebarLayout({
   /** Spacing of the header row, which differs between the two shells. */
   navClassName?: string;
   label?: string;
+  /** Matches the toggle to the rail it sits on. */
+  tone?: "light" | "dark";
 }) {
   /*
    * Read through useSyncExternalStore rather than setting state from an
@@ -128,6 +142,7 @@ export function SidebarLayout({
       <aside
         className={cn(
           "sticky top-0 hidden h-dvh shrink-0 flex-col overflow-hidden transition-[width] duration-200 ease-out lg:flex",
+          "relative",
           open ? width : "w-0",
           sidebarClassName,
         )}
@@ -142,27 +157,45 @@ export function SidebarLayout({
         >
           {sidebar}
         </div>
+
+        {open ? (
+          /* top-6 centres it on the rail's first row in both shells: the
+             candidate logo and the manager profile avatar. */
+          <div className="absolute right-3 top-6 z-20">
+            <Toggle open onClick={toggle} label={label} tone={tone} />
+          </div>
+        ) : null}
       </aside>
 
       <div className="relative flex min-w-0 flex-1 flex-col">
+        {/* The bar is 92px on the frame, and fixed rather than grown from its
+            contents: a page that hides the search box was rendering an 88px
+            bar, which pushed its heading 4px off every other page. */}
         {nav ? (
-          <header className="sticky top-0 z-10 border-b border-line bg-card/90 px-5 py-3 backdrop-blur">
-            <nav className="flex items-center gap-1">
-              <Toggle open={open} onClick={toggle} label={label} />
-              <div className={cn("flex min-w-0 flex-1 items-center", navClassName)}>
-                {nav}
-              </div>
+          <header className="sticky top-0 z-10 flex min-h-[92px] items-center bg-line px-8 py-6">
+            {/* w-full because the frame's bar is justify-between: without a
+                width the nav shrank to its contents and the bell and avatar
+                sat mid-header instead of against the right edge. */}
+            <nav className={cn("flex w-full min-w-0 items-center", navClassName)}>
+              {/* Takes its place in the row rather than floating over it:
+                  absolutely positioned, it landed on top of the search. */}
+              {!open ? (
+                <Toggle open={false} onClick={toggle} label={label} />
+              ) : null}
+              {nav}
             </nav>
           </header>
         ) : (
-          /* No header to sit in, so the toggle floats over the top-left of
-             the page — the only chrome on a screen the design keeps clean. */
-          <div className="absolute left-2 top-3 z-10 hidden lg:block">
-            <Toggle open={open} onClick={toggle} label={label} />
-          </div>
+          /* No header to sit in, so while the rail is shut the one button
+             that brings it back floats at the top-left of the page. */
+          !open && (
+            <div className="absolute left-2 top-3 z-20 hidden lg:block">
+              <Toggle open={false} onClick={toggle} label={label} />
+            </div>
+          )
         )}
 
-        <main className={cn("flex-1 px-5 py-7", !nav && "lg:px-8")}>
+        <main className="flex-1 px-5 py-8 lg:px-8">
           {children}
         </main>
       </div>

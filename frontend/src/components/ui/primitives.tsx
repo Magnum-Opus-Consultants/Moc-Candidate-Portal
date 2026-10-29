@@ -9,6 +9,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { Icon } from "@/components/ui/icon";
+
 export function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
@@ -94,7 +96,7 @@ export function StatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+        "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium",
         t.bg,
         t.text,
         className,
@@ -317,20 +319,47 @@ export function Avatar({
   initials,
   size = "md",
   tone = "teal",
+  src,
 }: {
   initials: string;
-  size?: "sm" | "md" | "lg";
-  tone?: "teal" | "navy";
+  size?: "sm" | "md" | "lg" | "xl" | "2xl";
+  tone?: "teal" | "navy" | "soft";
+  /** The uploaded photo. Initials stand in while there is none. */
+  src?: string;
 }) {
+  const box = cn(
+    "grid shrink-0 place-items-center overflow-hidden rounded-full font-semibold",
+    size === "sm" && "size-7 text-[11px]",
+    size === "md" && "size-9 text-xs",
+    size === "lg" && "size-11 text-sm",
+    size === "xl" && "size-10 text-sm",
+    /* My Profile's header (224:13853): 64px, and Medium rather than
+       SemiBold, which is what the frame sets at this size. */
+    size === "2xl" && "size-16 text-2xl !font-medium",
+  );
+
+  if (src) {
+    return (
+      /* eslint-disable-next-line @next/next/no-img-element */
+      <img
+        src={src}
+        alt=""
+        aria-hidden
+        className={cn(box, "object-cover")}
+      />
+    );
+  }
+
   return (
     <span
       aria-hidden
       className={cn(
-        "grid shrink-0 place-items-center rounded-full font-semibold",
-        size === "sm" && "size-7 text-[11px]",
-        size === "md" && "size-9 text-xs",
-        size === "lg" && "size-11 text-sm",
-        tone === "teal" ? "bg-brand-100 text-brand-700" : "bg-brand-700 text-brand-ink",
+        box,
+        tone === "soft"
+          ? "bg-brand-50 text-brand-700"
+          : tone === "teal"
+            ? "bg-brand-100 text-brand-700"
+            : "bg-brand-700 text-brand-ink",
       )}
     >
       {initials}
@@ -421,6 +450,57 @@ export function JobOverviewStat({
     </Link>
   ) : (
     <div className={className}>{body}</div>
+  );
+}
+
+/**
+ * A dashboard panel: one card carrying its own title and the rows under it.
+ *
+ * The candidate dashboard is built from four of these (frame 11:4875). The
+ * title sits inside the card, not above it, and the expand control on the
+ * right goes to the full page for that section - so the panel is a preview
+ * of a page rather than a section heading with loose cards beneath it.
+ */
+export function PanelCard({
+  title,
+  href,
+  expandLabel,
+  children,
+  className,
+}: {
+  title: string;
+  /** The full page this panel previews. */
+  href?: string;
+  /** What the expand control announces, since the icon alone says nothing. */
+  expandLabel?: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section
+      className={cn(
+        "flex flex-col gap-6 rounded-2xl bg-card pb-2 pt-6 shadow-xs",
+        className,
+      )}
+    >
+      <div className="flex items-center justify-between gap-3 px-6">
+        <h2 className="text-2xl font-semibold leading-8 text-ink-strong">
+          {title}
+        </h2>
+        {href ? (
+          <Link
+            href={href}
+            title={expandLabel ?? `See all ${title.toLowerCase()}`}
+            className="shrink-0 rounded text-ink-muted transition-colors hover:text-ink-strong"
+          >
+            <Icon name="expand" className="size-6" />
+            <span className="sr-only">{expandLabel ?? `See all ${title}`}</span>
+          </Link>
+        ) : null}
+      </div>
+
+      <div className="flex flex-col">{children}</div>
+    </section>
   );
 }
 

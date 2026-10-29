@@ -2,7 +2,11 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
 
-import { ProfileSectionRow, RecommendedJobCard } from "@/components/job-cards";
+import {
+  RecommendedJobCard,
+  SavedViewedRow,
+} from "@/components/job-cards";
+import { PortalFooter } from "@/components/portal-footer";
 import { BackendOffline, PageSkeleton } from "@/components/states";
 import { Icon } from "@/components/ui/icon";
 import { ProgressCircle } from "@/components/ui/progress-circle";
@@ -13,9 +17,10 @@ import {
   EmptyState,
   PROFILE_STRENGTH,
   PageHeading,
+  PanelCard,
   SectionHeading,
-  StatCard,
   StatusBadge,
+  cn,
 } from "@/components/ui/primitives";
 import { api, relativeDays, API_BASE_URL } from "@/lib/api";
 
@@ -28,16 +33,11 @@ export default function CandidateDashboardPage() {
 }
 
 /**
- * A new account has no name yet — sign-up takes only an email — and
- * display_name falls back to the username, which is the email address.
- * Greeting someone by their email reads like a mail-merge gone wrong, so
- * drop the name until there is a real one.
+ * The frame titles this page "Your dashboard" rather than greeting anyone,
+ * so the greeting helper that used to build "Welcome back, <first name>" is
+ * gone. It also sidesteps a problem that helper existed for: a new account
+ * has no name yet, and display_name falls back to the email address.
  */
-function greeting(name: string): string {
-  const first = name.trim().split(" ")[0];
-  if (!first || first.includes("@")) return "Welcome back";
-  return `Welcome back, ${first}`;
-}
 
 async function Dashboard() {
   // Relative dates ('3 days ago') are true only at the moment they are
@@ -46,143 +46,159 @@ async function Dashboard() {
   const result = await api.candidateDashboard();
   if (!result.ok) return <BackendOffline error={result.error} />;
 
-  const { user, profile, stats, recent_applications, recommended_jobs } =
-    result.data;
+  const {
+    user,
+    profile,
+    recent_applications,
+    recommended_jobs,
+    saved_jobs_list,
+    recently_viewed,
+  } = result.data;
   const strength =
     PROFILE_STRENGTH[profile.strength] ?? PROFILE_STRENGTH.getting_started;
   const incomplete = profile.sections.filter((s) => !s.completed);
 
   return (
-    <div className="space-y-8">
-      <PageHeading
-        title={greeting(user.name)}
-        subtext="Your applications, saved roles and the positions we think fit you."
-        action={
-          <Button href="/" variant="outline" size="sm">
-            Browse all jobs
-          </Button>
-        }
-      />
+    <div>
+      {/*
+        844 + 20 + 268 = the 1132 content width the frame uses.
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+        The heading belongs inside the left column, not above both: on the
+        frame the profile panel's top is level with "Your dashboard". With
+        the heading above the grid the panel started 189px lower, which both
+        looked unaligned and delayed the point at which it pins.
+      */}
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_268px] lg:items-start">
         {/* Main column. */}
-        <div className="space-y-8">
-          {/*
-            Each tile links to the page behind it — a count the reader cannot
-            act on is just decoration. "Total applications" was dropped: with
-            nothing applied for it read 0 beside another 0, and once there is
-            history it only repeats what the applications page already shows.
-            "Roles matched" takes its place, which is the one number that is
-            useful on day one.
-          */}
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <StatCard
-              href="/portal/applications"
-              value={stats.active_applications}
-              title="Active applications"
-              supporting={
-                stats.active_applications === 0
-                  ? "Nothing in progress yet"
-                  : "Still in progress"
-              }
-            />
-            <StatCard
-              href="/portal/applications"
-              value={stats.shortlisted}
-              title="Shortlisted"
-              supporting={
-                stats.shortlisted === 0
-                  ? "None yet — keep applying"
-                  : "You made the cut"
-              }
-            />
-            <StatCard
-              href="/portal/saved"
-              value={stats.saved_jobs}
-              title="Saved jobs"
-              supporting={
-                stats.saved_jobs === 0
-                  ? "Bookmark roles to compare later"
-                  : "Roles you kept for later"
-              }
-            />
-          </div>
+        <div className="flex flex-col gap-8">
+          <PageHeading
+            title="Your dashboard"
+            subtext="Track your applications, complete your profile and discover jobs matched to your experience"
+          />
 
-          <section>
-            <SectionHeading
-              title="Active applications"
-              action={
-                <Link
-                  href="/portal/applications"
-                  className="inline-flex items-center gap-1 text-sm font-medium text-brand-700"
-                >
-                  View all
-                  <Icon name="chevron-right" className="size-3.5" />
-                </Link>
-              }
-            />
+          <div className="space-y-5">
+          {/*
+            One card holding its own title and the rows, divided by
+            hairlines - frame 11:4881. It used to be a heading outside a
+            stack of separate cards, which read as five unrelated things
+            rather than one list.
+          */}
+          <PanelCard
+            title="Active Applications"
+            href="/portal/applications"
+            expandLabel="See all applications"
+          >
             {recent_applications.length === 0 ? (
-              <EmptyState
-                title="No applications yet"
-                body="Apply for a role and you can track its progress here."
-              />
+              <p className="px-6 py-8 text-center text-sm text-ink-subtle">
+                Apply for a role and you can track its progress here.
+              </p>
             ) : (
-              <div className="space-y-2">
-                {recent_applications.map((application) => (
-                  <Card
-                    key={application.id}
-                    className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+              recent_applications.map((application, index) => (
+                <div
+                  key={application.id}
+                  className={cn(
+                    "flex items-center justify-between gap-4 px-6 py-3.5",
+                    index < recent_applications.length - 1 &&
+                      "border-b border-line-soft",
+                  )}
+                >
+                  <Link
+                    href={`/jobs/${application.job.id}`}
+                    className="min-w-0 truncate py-2 text-base font-semibold leading-6 text-ink-body hover:text-brand-700"
                   >
-                    <div className="min-w-0">
-                      <Link
-                        href={`/jobs/${application.job.id}`}
-                        className="font-medium text-ink-strong hover:text-brand-700"
-                      >
-                        {application.job.title}
-                      </Link>
-                      <p className="text-xs text-ink-subtle">
-                        {application.job.company} · applied{" "}
-                        {relativeDays(application.applied_at).toLowerCase()}
-                      </p>
-                    </div>
+                    {application.job.title}
+                  </Link>
+
+                  <div className="flex shrink-0 items-center gap-10">
                     <StatusBadge
                       label={application.status_label}
                       tone={APPLICATION_STATUS_TONE[application.status] ?? "grey"}
                     />
-                  </Card>
-                ))}
-              </div>
+                    <Link
+                      href={`/jobs/${application.job.id}`}
+                      className="inline-flex items-center gap-2 text-sm font-semibold leading-5 text-brand-700"
+                    >
+                      View job details
+                      <Icon name="chevron-right" className="size-5" />
+                    </Link>
+                  </div>
+                </div>
+              ))
             )}
-          </section>
+          </PanelCard>
 
-          <section>
-            <SectionHeading
-              title="Recommended for you"
-              subtext="Ranked against your profile by the matching engine"
-              action={
-                <Link
-                  href="/portal/recommended"
-                  className="inline-flex items-center gap-1 text-sm font-medium text-brand-700"
-                >
-                  View all
-                  <Icon name="chevron-right" className="size-3.5" />
-                </Link>
-              }
-            />
+          <PanelCard
+            title="Recommended Jobs"
+            href="/portal/recommended"
+            expandLabel="See all recommended jobs"
+          >
             {recommended_jobs.length === 0 ? (
-              <EmptyState title="Nothing to recommend yet" />
+              <p className="px-6 py-8 text-center text-sm text-ink-subtle">
+                Nothing to recommend yet.
+              </p>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-5 px-6 pb-4 sm:grid-cols-2 xl:grid-cols-3">
                 {recommended_jobs.map((job) => (
                   <RecommendedJobCard key={job.id} job={job} />
                 ))}
               </div>
             )}
-          </section>
+          </PanelCard>
+
+          {/* Two panels side by side, 412px each with a 20px gutter. */}
+          <div className="grid gap-5 lg:grid-cols-2">
+            <PanelCard
+              title="Saved Jobs"
+              href="/portal/saved"
+              expandLabel="See all saved jobs"
+            >
+              {saved_jobs_list.length === 0 ? (
+                <p className="px-6 py-8 text-center text-sm text-ink-subtle">
+                  Bookmark a role and it waits for you here.
+                </p>
+              ) : (
+                saved_jobs_list.map((entry, index) => (
+                  <SavedViewedRow
+                    key={`saved-${entry.job.id}-${entry.at}`}
+                    job={entry.job}
+                    at={entry.at}
+                    verb="Saved"
+                    action="apply"
+                    divided={index < saved_jobs_list.length - 1}
+                  />
+                ))
+              )}
+            </PanelCard>
+
+            <PanelCard title="Recently viewed">
+              {recently_viewed.length === 0 ? (
+                <p className="px-6 py-8 text-center text-sm text-ink-subtle">
+                  Roles you open show up here.
+                </p>
+              ) : (
+                recently_viewed.map((entry, index) => (
+                  <SavedViewedRow
+                    key={`viewed-${entry.job.id}-${entry.at}`}
+                    job={entry.job}
+                    at={entry.at}
+                    verb="Viewed"
+                    action="details"
+                    divided={index < recently_viewed.length - 1}
+                  />
+                ))
+              )}
+            </PanelCard>
+          </div>
+
+          </div>
         </div>
 
         {/* Right column — the big profile-completion panel. */}
-        <aside className="space-y-4 lg:sticky lg:top-4">
+        {/* Sits at the top of the page and scrolls away with everything
+            else. It was sticky, which pinned it to the viewport and carried
+            it down the screen as you scrolled; Ethan asked for the opposite
+            - anchored to the page, not following the reader. */}
+        <aside className="space-y-5 lg:self-start">
           {/*
             The petrol panel from the frame. Dark in both themes, on fixed
             --panel-* tokens: the brand ramp inverts for dark mode, which
@@ -194,10 +210,35 @@ async function Dashboard() {
             unfinished sections sit in their own card below, rather than
             being crammed onto a surface that was designed to say one thing.
           */}
-          <section className="rounded-2xl bg-panel p-6 shadow-sm">
-            <h2 className="text-base font-semibold text-panel-ink">Profile</h2>
+          {/* The frame calls this one "sticky": the wheel stays put while
+              the long left column scrolls. Sticky goes on the panel, not on
+              the column - the column is taller than the viewport, so pinning
+              that only takes effect once you reach its end.
 
-            <div className="mt-5 flex justify-center">
+              The offset clears the sticky header (63px) plus the page's own
+              20px gutter; at top-5 the panel's title slid under it.
+
+              The height cap is what the frame means by "fills to viewport
+              bottom". Without it the panel is 685px, which plus the offset
+              is taller than a 13-inch laptop's viewport - and a sticky box
+              taller than the space it has cannot hold, so it drifted up the
+              screen as you scrolled instead of staying put. */}
+          <section className="flex flex-col gap-5 rounded-2xl bg-panel p-6 shadow-xs">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-2xl font-semibold leading-8 text-panel-ink">
+                Profile
+              </h2>
+              <Link
+                href="/portal/profile"
+                title="Open my profile"
+                className="shrink-0 text-panel-ink-muted transition-colors hover:text-panel-ink"
+              >
+                <Icon name="expand" className="size-6" />
+                <span className="sr-only">Open my profile</span>
+              </Link>
+            </div>
+
+            <div className="flex justify-center">
               <ProgressCircle
                 value={profile.completion}
                 size="2xl"
@@ -206,24 +247,69 @@ async function Dashboard() {
               />
             </div>
 
-            {/* One pill, label and value together, as the frame has it. */}
-            <div className="mt-6 flex justify-center">
-              <span className="inline-flex items-center gap-2 rounded-full bg-panel-ink px-3.5 py-1.5 text-xs">
-                <span className="font-medium text-panel">Profile status</span>
-                <span aria-hidden className="size-1.5 rounded-full bg-ink-subtle" />
-                <span className="text-ink-muted">{strength.label}</span>
+            {/* Label left, status badge right, filling the panel width. */}
+            <div className="flex items-center justify-between gap-2 rounded-2xl bg-card-muted py-1 pl-3 pr-1">
+              <span className="shrink-0 whitespace-nowrap text-xs font-medium leading-[18px] text-ink-muted">
+                Profile status
               </span>
+              <StatusBadge label={strength.label} tone="grey" />
             </div>
 
-            <p className="mt-4 text-center text-sm leading-relaxed text-panel-ink-muted">
+            <p className="text-center text-sm leading-5 text-panel-ink-muted">
               {profile.completion >= 100
                 ? "Your profile is complete. A full profile is ranked higher against every role you apply for."
                 : "A complete profile gets you better job matches and more recruiter visibility."}
             </p>
 
+            {/*
+              "Still to complete" belongs on the panel (frame 127:4320), not
+              in a card underneath it. Status is the dot colour alone - amber
+              for started, grey for not - and the whole row opens its section.
+            */}
+            {incomplete.length > 0 ? (
+              <div className="mt-6 flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold leading-5 text-panel-ink">
+                    Still to complete
+                  </h3>
+                  <span className="text-xs leading-[18px] text-panel-ink-muted">
+                    {incomplete.length}{" "}
+                    {incomplete.length === 1 ? "section" : "sections"}
+                  </span>
+                </div>
+
+                <div className="py-1">
+                  <div className="h-px w-full bg-panel-track" />
+                </div>
+
+                {incomplete.map((section) => (
+                  <Link
+                    key={section.slug}
+                    href={`/portal/profile/edit#${section.slug}`}
+                    className="flex items-center gap-2 rounded-md py-1.5 transition-colors hover:bg-white/5"
+                  >
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "size-2 shrink-0 rounded-full",
+                        section.progress > 0 ? "bg-yellow" : "bg-line-strong",
+                      )}
+                    />
+                    <span className="min-w-0 flex-1 truncate text-xs font-medium leading-[18px] text-panel-ink">
+                      {section.label}
+                    </span>
+                    <Icon
+                      name="chevron-right"
+                      className="size-3.5 shrink-0 text-panel-ink-muted"
+                    />
+                  </Link>
+                ))}
+              </div>
+            ) : null}
+
             <Link
               href="/portal/profile"
-              className="mt-6 flex h-11 w-full items-center justify-center rounded-xl bg-panel-action px-4 text-sm font-semibold text-panel-ink transition-colors hover:bg-panel-action-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-panel-ink/60 active:scale-[0.99]"
+              className="mt-1 flex w-full items-center justify-center rounded-lg border border-brand-secondary bg-brand-secondary px-3.5 py-2 text-sm font-semibold leading-5 text-brand-secondary-ink shadow-xs transition-colors hover:border-brand-secondary-hover hover:bg-brand-secondary-hover"
             >
               {profile.completion === 0
                 ? "Fill in your profile"
@@ -264,22 +350,11 @@ async function Dashboard() {
               </span>
             )}
 
-            {incomplete.length > 0 ? (
-              <div className="mt-5 border-t border-line pt-4">
-                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-ink-subtle">
-                  Finish these next
-                </p>
-                <div className="divide-y divide-line">
-                  {incomplete.slice(0, 3).map((section) => (
-                    <ProfileSectionRow key={section.slug} section={section} />
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
           </Card>
         </aside>
       </div>
+
+      <PortalFooter />
     </div>
   );
 }

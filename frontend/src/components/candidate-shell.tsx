@@ -2,6 +2,7 @@ import { Suspense, type ReactNode } from "react";
 
 import { SidebarLayout } from "@/components/collapsible-sidebar";
 import { IdleTimeout } from "@/components/idle-timeout";
+import { Logo } from "@/components/logo";
 import { LogoutButton } from "@/components/logout-button";
 import { ShellSearch } from "@/components/shell-search";
 import { NavLink } from "@/components/nav-link";
@@ -49,7 +50,9 @@ export function CandidateShell({
       <SidebarLayout
         storageKey="moc:candidate-sidebar"
         sidebarClassName="border-r border-line bg-card"
-        width="w-60"
+        // 244px on the frame; w-60 (240) left the content column 4px wide
+        // of the 1132 it should be.
+        width="w-61"
         navClassName="gap-4"
         nav={
           <>
@@ -66,7 +69,7 @@ export function CandidateShell({
                 className="rounded-lg p-2 text-ink-muted transition-colors hover:bg-card-muted hover:text-ink"
               >
                 <span className="sr-only">Notifications</span>
-                <Icon name="bell" />
+                <Icon name="bell" className="size-6" />
               </button>
               {avatar}
             </div>
@@ -74,7 +77,14 @@ export function CandidateShell({
         }
         sidebar={
           <>
-            <nav className="flex-1 space-y-0.5 px-3 pt-5">
+            {/* The design opens the rail with the lockup; the nav used to
+                start straight at "Dashboard", so the portal carried no MOC
+                branding at all once you were signed in. */}
+            <div className="px-4 pb-2 pt-4">
+              <Logo href="/portal" className="h-12" />
+            </div>
+
+            <nav className="flex-1 space-y-0.5 px-3 pt-3">
               {NAV.map((item) => (
                 <NavLink key={item.href} href={item.href} exact={item.exact}>
                   <Icon name={item.icon} />
@@ -99,7 +109,11 @@ export function CandidateShell({
 export async function CandidateAvatar() {
   const result = await api.candidateProfile();
   return (
-    <Avatar initials={result.ok ? result.data.user.initials : "··"} size="sm" />
+    <Avatar
+      initials={result.ok ? result.data.user.initials : "··"}
+      src={result.ok ? result.data.photo_url : undefined}
+      size="xl"
+    />
   );
 }
 
