@@ -1,5 +1,7 @@
 """Domain model for the MOC Candidate Portal."""
 
+import re
+
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
@@ -144,6 +146,24 @@ class ProfileStatus(models.TextChoices):
 
 
 # The eight profile sections shown as progress rows in the approved designs.
+def anonymise(text: str, company: str) -> str:
+    """Strip the hiring company's name out of candidate-facing copy.
+
+    The seeded descriptions follow two shapes - "<Title> at <Company>, a
+    <industry> company in <place>" and "<Company> is a <industry> company
+    based in <place>" - so those are rewritten into something that still
+    reads as a sentence. Anything else simply loses the name.
+    """
+    if not text or not company:
+        return text
+
+    name = re.escape(company.strip())
+    text = re.sub(rf"\bat {name}\b\s*,\s*", "for ", text)
+    text = re.sub(rf"^{name}\s+is\b", "This is", text)
+    text = re.sub(rf"\b{name}\b", "the company", text)
+    return re.sub(r"\s{2,}", " ", text).strip()
+
+
 PROFILE_SECTIONS = [
     ("personal_details", "Personal Details"),
     ("ee_information", "Optional EE Information"),
@@ -444,6 +464,13 @@ class Job(models.Model):
     company_industry = models.CharField(max_length=120, blank=True)
     company_location = models.CharField(max_length=120, blank=True)
     about_company = models.TextField(blank=True)
+    # What a candidate is shown in place of the two fields above. The design
+    # system puts a hard rule on every candidate-facing job component:
+    # never name or reveal the hiring company. Managers keep writing the
+    # real copy; these carry the anonymised version, and the candidate
+    # serializer falls back to anonymise() so a blank one can never leak.
+    candidate_description = models.TextField(blank=True)
+    candidate_about_company = models.TextField(blank=True)
     key_responsibilities = models.JSONField(default=list, blank=True)
     advantageous_tools = models.JSONField(default=list, blank=True)
 

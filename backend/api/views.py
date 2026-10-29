@@ -1182,6 +1182,24 @@ def candidate_dashboard(request):
                 applications[:4], many=True
             ).data,
             "recommended_jobs": recommended,
+            # The dashboard shows three of each beside one another. Both
+            # carry their own timestamp, because "saved 2 days ago" and
+            # "viewed 2 days ago" are what the rows are ordered by.
+            "saved_jobs_list": [
+                {
+                    "job": JobSerializer(entry.job).data,
+                    "at": entry.saved_at,
+                }
+                for entry in saved[:3]
+            ],
+            "recently_viewed": [
+                {
+                    "job": JobSerializer(entry.job).data,
+                    "at": entry.viewed_at,
+                }
+                for entry in ViewedJob.objects.filter(candidate=seeker)
+                .select_related("job")[:3]
+            ],
         }
     )
 

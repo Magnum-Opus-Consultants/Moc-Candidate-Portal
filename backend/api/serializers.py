@@ -5,6 +5,7 @@ from rest_framework import serializers
 
 from .models import (
     PIPELINE,
+    anonymise,
     PROFILE_SECTIONS,
     Activity,
     Application,
@@ -57,6 +58,12 @@ class JobSerializer(serializers.ModelSerializer):
     created_by_name = serializers.CharField(
         source="created_by.display_name", read_only=True, default=""
     )
+    # The candidate-facing copy. Always populated: if nobody has written an
+    # anonymised version yet it is derived on the way out, so the hard rule
+    # that no candidate-facing view names the hiring company cannot be
+    # broken by leaving a field blank.
+    candidate_description = serializers.SerializerMethodField()
+    candidate_about_company = serializers.SerializerMethodField()
     closes_soon = serializers.BooleanField(read_only=True)
     days_until_close = serializers.IntegerField(read_only=True, allow_null=True)
     working_hours_label = serializers.CharField(read_only=True)
@@ -105,6 +112,8 @@ class JobSerializer(serializers.ModelSerializer):
             "applicant_count",
             "new_applicant_count",
             "created_by_name",
+            "candidate_description",
+            "candidate_about_company",
             "closes_soon",
             "days_until_close",
             # The detail view
@@ -119,6 +128,14 @@ class JobSerializer(serializers.ModelSerializer):
             "working_hours_label",
             "working_hours_count",
         ]
+
+    def get_candidate_description(self, obj) -> str:
+        return obj.candidate_description or anonymise(obj.description, obj.company)
+
+    def get_candidate_about_company(self, obj) -> str:
+        return obj.candidate_about_company or anonymise(
+            obj.about_company, obj.company
+        )
 
 
 class ProfileSectionSerializer(serializers.Serializer):
